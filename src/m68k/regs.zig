@@ -1,55 +1,54 @@
 const meta = @import("std").meta;
 const expect = @import("std").testing.expect;
+const Self = @This();
 
-pub const Regs = struct {
-    d: [8]u32,
-    a: [8]u32,
-    pc: u32,
-    sr: Status,
-    
-    pub fn reset() Regs {
-        return .{
-            .d = [_]u32{0} ** 8,
-            .a = [_]u32{0} ** 8,
-            .pc = 0,
-            .sr = Status.reset(),
-        };
-    }
-    
-    pub const Status = packed struct {
-        c: bool,
-        o: bool,
-        z: bool,
-        n: bool,
-        e: bool,
-        reserved_ccr: u3 = 0,
-        ipl: u3,
-        reserved_ssr: u2 = 0,
-        s: bool,
-        reserved_trace: u1 = 0,
-        t: bool,
-        
-        pub fn reset() Status {
-            return @bitCast(0b0010_0111_0000_0000);
-        }
+d: [8]u32,
+a: [8]u32,
+pc: u32,
+sr: Status,
+
+pub fn reset() Self {
+    return .{
+        .d = [_]u32{0} ** 8,
+        .a = [_]u32{0} ** 8,
+        .pc = 0,
+        .sr = Status.reset(),
     };
+}
+
+pub const Status = packed struct {
+    c: bool,
+    o: bool,
+    z: bool,
+    n: bool,
+    e: bool,
+    reserved_ccr: u3 = 0,
+    ipl: u3,
+    reserved_ssr: u2 = 0,
+    s: bool,
+    reserved_trace: u1 = 0,
+    t: bool,
     
-    // Store to registers
-    pub fn std(self: *Regs, reg: u3, data: anytype) void {
-        self.d[reg] = overwrite(self.d[reg], data);
-    }
-    pub fn sta(self: *Regs, reg: u3, data: anytype) void {
-        self.a[reg] = extend(u32, data);
-    }
-    
-    // Load from registers
-    pub fn ldd(self: *Regs, reg: u3, comptime T: type) T {
-        return @as(T, self.d[reg]);
-    }
-    pub fn lda(self: *Regs, reg: u3, comptime T: type) u32 {
-        return extend(u32, @as(T, @truncate(self.a[reg])));
+    pub fn reset() Status {
+        return @bitCast(0b0010_0111_0000_0000);
     }
 };
+
+// Store to registers
+pub fn std(self: *Self, reg: u3, data: anytype) void {
+    self.d[reg] = overwrite(self.d[reg], data);
+}
+pub fn sta(self: *Self, reg: u3, data: anytype) void {
+    self.a[reg] = extend(u32, data);
+}
+
+// Load from registers
+pub fn ldd(self: *Self, reg: u3, comptime T: type) T {
+    return @as(T, self.d[reg]);
+}
+pub fn lda(self: *Self, reg: u3, comptime T: type) u32 {
+    return extend(u32, @as(T, @truncate(self.a[reg])));
+}
 
 // Extend a type, setting everything to the extended value of dst
 pub fn extend(Dst: type, src: anytype) Dst {
