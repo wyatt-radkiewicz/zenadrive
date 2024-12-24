@@ -27,47 +27,46 @@ pub fn wr(self: *Self, comptime T: type, addr: u32, data: T) void {
 pub fn init(bus: anytype) Self {
     const BusPtr = @TypeOf(bus);
     const Bus = @typeInfo(BusPtr).Pointer.child;
-    
+
     // Generate the actual function calls and ensure the functions are actually type-correct
-    const fns = struct {
+    const vtable = struct {
         pub fn rd8(ctx: *anyopaque, addr: u24) u8 {
             const busctx: BusPtr = @ptrCast(@alignCast(ctx));
-            return Bus.rd8(busctx, addr);
+            return Bus.rd(busctx, u8, addr);
         }
         pub fn wr8(ctx: *anyopaque, addr: u24, data: u8) void {
             const busctx: BusPtr = @ptrCast(@alignCast(ctx));
-            return Bus.wr8(busctx, addr, data);
+            return Bus.wr(busctx, u8, addr, data);
         }
-        
+
         pub fn rd16(ctx: *anyopaque, addr: u24) u16 {
             const busctx: BusPtr = @ptrCast(@alignCast(ctx));
-            return Bus.rd16(busctx, addr);
+            return Bus.rd(busctx, u16, addr);
         }
         pub fn wr16(ctx: *anyopaque, addr: u24, data: u16) void {
             const busctx: BusPtr = @ptrCast(@alignCast(ctx));
-            return Bus.wr16(busctx, addr, data);
+            return Bus.wr(busctx, u16, addr, data);
         }
-        
-        
+
         pub fn rd32(ctx: *anyopaque, addr: u24) u32 {
             const busctx: BusPtr = @ptrCast(@alignCast(ctx));
-            return Bus.rd32(busctx, addr);
+            return Bus.rd(busctx, u32, addr);
         }
         pub fn wr32(ctx: *anyopaque, addr: u24, data: u32) void {
             const busctx: BusPtr = @ptrCast(@alignCast(ctx));
-            return Bus.wr32(busctx, addr, data);
+            return Bus.wr(busctx, u32, addr, data);
         }
     };
-    
+
     return .{
         .ctx = @ptrCast(bus),
         .vtable = &.{
-            .rd8 = fns.rd8,
-            .wr8 = fns.wr8,
-            .rd16 = fns.rd16,
-            .wr16 = fns.wr16,
-            .rd32 = fns.rd32,
-            .wr32 = fns.wr32,
+            .rd8 = vtable.rd8,
+            .wr8 = vtable.wr8,
+            .rd16 = vtable.rd16,
+            .wr16 = vtable.wr16,
+            .rd32 = vtable.rd32,
+            .wr32 = vtable.wr32,
         },
     };
 }
@@ -94,38 +93,25 @@ test "Bus read and write" {
         d8: u8 = undefined,
         d16: u16 = undefined,
         d32: u32 = undefined,
-        
+
         const TestBus = @This();
-        fn rd8(self: *TestBus, addr: u24) u8 {
+        fn rd(self: *TestBus, comptime T: type, addr: u24) T {
             _ = addr;
-            return self.d8;
+            return @field(self, std.fmt.comptimePrint("d{}", .{
+                @typeInfo(T).Int.bits,
+            }));
         }
-        fn rd16(self: *TestBus, addr: u24) u16 {
+        fn wr(self: *TestBus, comptime T: type, addr: u24, data: T) void {
             _ = addr;
-            return self.d16;
-        }
-        fn rd32(self: *TestBus, addr: u24) u32 {
-            _ = addr;
-            return self.d32;
-        }
-        
-        fn wr8(self: *TestBus, addr: u24, data: u8) void {
-            _ = addr;
-            self.d8 = data;
-        }
-        fn wr16(self: *TestBus, addr: u24, data: u16) void {
-            _ = addr;
-            self.d16 = data;
-        }
-        fn wr32(self: *TestBus, addr: u24, data: u32) void {
-            _ = addr;
-            self.d32 = data;
+            @field(self, std.fmt.comptimePrint("d{}", .{
+                @typeInfo(T).Int.bits,
+            })) = data;
         }
     };
-    
+
     var bus_impl = TestBus{};
     var bus = Self.init(&bus_impl);
-    
+
     bus.wr(u8, 0, 0x12);
     try expect(bus.rd(u8, 0) == 0x12);
     bus.wr(u16, 0, 0x1234);
