@@ -5,7 +5,6 @@ ctx: *anyopaque,
 vtable: *const VTable,
 
 pub fn rd(self: *Self, comptime T: type, addr: u32) T {
-    if (addr & 1 != 0 and T != i8 and T != u8) return 0;
     switch (T) {
         i8, u8 => return @bitCast(self.vtable.rd8(self.ctx, @truncate(addr))),
         i16, u16 => return @bitCast(self.vtable.rd16(self.ctx, @truncate(addr))),
@@ -15,7 +14,6 @@ pub fn rd(self: *Self, comptime T: type, addr: u32) T {
 }
 
 pub fn wr(self: *Self, comptime T: type, addr: u32, data: T) void {
-    if (addr & 1 != 0 and T != i8 and T != u8) return;
     switch (T) {
         i8, u8 => self.vtable.wr8(self.ctx, @truncate(addr), @bitCast(data)),
         i16, u16 => self.vtable.wr16(self.ctx, @truncate(addr), @bitCast(data)),
