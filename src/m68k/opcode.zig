@@ -84,14 +84,14 @@ pub const Opcode = enum {
     add,
     addx,
     adda,
-    as_d1,
-    ls_d1,
-    rox_d1,
-    ro_d1,
-    as_dn,
-    ls_dn,
-    rox_dn,
-    ro_dn,
+    @"asm",
+    lsm,
+    roxm,
+    rom,
+    asd,
+    lsd,
+    roxd,
+    rod,
 
     pub fn decode(word: u16) Opcode {
         // Split into decoding lines first
@@ -261,9 +261,10 @@ pub const Opcode = enum {
         if (ops.brange(u2, word, 6) == 0b11) {
             return if (ops.getbit(word, 8)) Opcode.muls else Opcode.mulu;
         }
+        if (!ops.getbit(word, 8)) return Opcode.@"and";
         return switch (ops.brange(u3, word, 3)) {
             0b000, 0b001 => if (ops.brange(u2, word, 6) == 0b00) Opcode.abcd else Opcode.exg,
-            else => return Opcode.@"and",
+            else => Opcode.@"and",
         };
     }
     
@@ -276,14 +277,14 @@ pub const Opcode = enum {
     }
     
     fn decode_line_1110(word: u16) Opcode {
-        const invalid_size = ops.brange(u2, word, 6);
+        const invalid_size = ops.brange(u2, word, 6) == 0b11;
         const instr_type = ops.brange(u2, word, if (invalid_size) 9 else 3);
-        switch (instr_type) {
-            0b00 => if (invalid_size) Opcode.as_d1 else Opcode.as_dn,
-            0b01 => if (invalid_size) Opcode.ls_d1 else Opcode.ls_dn,
-            0b10 => if (invalid_size) Opcode.roxs_d1 else Opcode.roxs_dn,
-            0b11 => if (invalid_size) Opcode.ros_d1 else Opcode.ros_dn,
-        }
+        return switch (instr_type) {
+            0b00 => if (invalid_size) Opcode.@"asm" else Opcode.asd,
+            0b01 => if (invalid_size) Opcode.lsm else Opcode.lsd,
+            0b10 => if (invalid_size) Opcode.roxm else Opcode.roxd,
+            0b11 => if (invalid_size) Opcode.rom else Opcode.rod,
+        };
     }
 };
 
@@ -343,4 +344,66 @@ test "line_0100" {
     try expect(Opcode.decode(0x4CD8) == Opcode.movem);
     try expect(Opcode.decode(0x41D0) == Opcode.lea);
     try expect(Opcode.decode(0x4181) == Opcode.chk);
+}
+
+test "line_0101" {
+    try expect(Opcode.decode(0x5A40) == Opcode.addq);
+    try expect(Opcode.decode(0x5B40) == Opcode.subq);
+    try expect(Opcode.decode(0x57C0) == Opcode.s_cc);
+    try expect(Opcode.decode(0x56C8) == Opcode.db_cc);
+}
+
+test "line_0110" {
+    try expect(Opcode.decode(0x6000) == Opcode.bra);
+    try expect(Opcode.decode(0x6100) == Opcode.bsr);
+    try expect(Opcode.decode(0x6600) == Opcode.b_cc);
+}
+
+test "line_0111" {
+    try expect(Opcode.decode(0x7003) == Opcode.moveq);
+}
+
+test "line_1000" {
+    try expect(Opcode.decode(0x80FC) == Opcode.divu);
+    try expect(Opcode.decode(0x81FC) == Opcode.divs);
+    try expect(Opcode.decode(0x8300) == Opcode.sbcd);
+    try expect(Opcode.decode(0x8110) == Opcode.@"or");
+}
+
+test "line_1001" {
+    try expect(Opcode.decode(0x9050) == Opcode.sub);
+    try expect(Opcode.decode(0x9140) == Opcode.subx);
+    try expect(Opcode.decode(0x91C8) == Opcode.suba);
+}
+
+test "line_1011" {
+    try expect(Opcode.decode(0xB141) == Opcode.eor);
+    try expect(Opcode.decode(0xB348) == Opcode.cmpm);
+    try expect(Opcode.decode(0xB048) == Opcode.cmp);
+    try expect(Opcode.decode(0xB0C0) == Opcode.cmpa);
+}
+
+test "line_1100" {
+    try expect(Opcode.decode(0xC0FC) == Opcode.mulu);
+    try expect(Opcode.decode(0xC1FC) == Opcode.muls);
+    try expect(Opcode.decode(0xC100) == Opcode.abcd);
+    try expect(Opcode.decode(0xC188) == Opcode.exg);
+    try expect(Opcode.decode(0xC040) == Opcode.@"and");
+}
+
+test "line_1101" {
+    try expect(Opcode.decode(0xD050) == Opcode.add);
+    try expect(Opcode.decode(0xD140) == Opcode.addx);
+    try expect(Opcode.decode(0xD1C8) == Opcode.adda);
+}
+
+test "line_1110" {
+    try expect(Opcode.decode(0xE0D0) == Opcode.@"asm");
+    try expect(Opcode.decode(0xE3D0) == Opcode.lsm);
+    try expect(Opcode.decode(0xE5D0) == Opcode.roxm);
+    try expect(Opcode.decode(0xE7D0) == Opcode.rom);
+    try expect(Opcode.decode(0xE440) == Opcode.asd);
+    try expect(Opcode.decode(0xE548) == Opcode.lsd);
+    try expect(Opcode.decode(0xE550) == Opcode.roxd);
+    try expect(Opcode.decode(0xE558) == Opcode.rod);
 }
