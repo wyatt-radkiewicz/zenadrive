@@ -43,7 +43,7 @@ pub const Opcode = enum {
     tst,
     trap,
     link,
-    ulnk,
+    unlk,
     move_usp,
     reset,
     nop,
@@ -95,14 +95,12 @@ pub const Opcode = enum {
 
     pub fn decode(word: u16) Opcode {
         // Split into decoding lines first
-        switch (ops.brange(u4, word, 12)) {
-            0b0001...0b0011 => {
-                return Opcode.decode_line_move(word);
-            },
-            inline else => |line| {
-                return @field(Opcode, std.fmt.comptimePrint("decode_line_{b:0>4}", .{line}))(word);
-            },
-        }
+        return switch (ops.brange(u4, word, 12)) {
+            0b0001...0b0011 => Opcode.decode_line_move(word),
+            0b1010, 0b1111 => Opcode.illegal,
+            0b0111 => Opcode.moveq,
+            inline else => |line| @field(Opcode, std.fmt.comptimePrint("decode_line_{b:0>4}", .{line}))(word),
+        };
     }
 
     fn decode_line_0000(word: u16) Opcode {
@@ -133,15 +131,12 @@ pub const Opcode = enum {
                         ops.brange(u3, word, 3),
                         ops.brange(u3, word, 0),
                     )) |addrmode| {
-                        if (addrmode == .imm) {
-                            return switch (ops.brange(u2, word, 6)) {
-                                0b00 => @enumFromInt(enum_val),
-                                0b01 => @enumFromInt(enum_val + 1),
-                                else => Opcode.illegal,
-                            };
-                        } else {
-                            return @enumFromInt(enum_val + 2);
-                        }
+                        if (addrmode != .imm) return @enumFromInt(enum_val + 2);
+                        return switch (ops.brange(u2, word, 6)) {
+                            0b00 => @enumFromInt(enum_val),
+                            0b01 => @enumFromInt(enum_val + 1),
+                            else => Opcode.illegal,
+                        };
                     } else {
                         return Opcode.illegal;
                     }
@@ -163,68 +158,132 @@ pub const Opcode = enum {
     }
     
     fn decode_line_move(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
+        return if (ops.brange(u3, word, 6) == 0b001) Opcode.movea else Opcode.move;
     }
     
     fn decode_line_0100(word: u16) Opcode {
-        _ = word;
+        // Take care of oddly encoded instructions first
+        switch (ops.brange(u3, word, 6)) {
+            0b110 => return Opcode.chk,
+            0b111 => return Opcode.lea,
+            else => {},
+        }
+        
+        // Take care of other instructions
+        const invalid_size = ops.brange(u2, word, 6) == 0b11;
+        switch (ops.brange(u4, word, 8)) {
+            0b0000 => return if (invalid_size) Opcode.move_from_sr else Opcode.negx,
+            0b0100 => return if (invalid_size) Opcode.move_to_ccr else Opcode.neg,
+            0b0110 => return if (invalid_size) Opcode.move_to_sr else Opcode.not,
+            0b0010 => return Opcode.clr,
+            0b1000 => {
+                if (ops.getbit(word, 7)) {
+                    return if (ops.brange(u3, word, 3) == 0b000) Opcode.ext else Opcode.movem;
+                } else {
+                    if (!ops.getbit(word, 6)) return Opcode.nbcd;
+                    return if (ops.brange(u3, word, 3) == 0b000) Opcode.swap else Opcode.pea;
+                }
+            },
+            0b1010 => {
+                if (word == 0b0100101011111100) return Opcode.illegal;
+                return if (ops.brange(u2, word, 6) == 0b11) Opcode.tas else Opcode.tst;
+            },
+            else => {},
+        }
+        
+        // Do movem and jsr/jmp
+        if (ops.getbit(word, 11) and ops.brange(u3, word, 7) == 0b001) return Opcode.movem;
+        if (ops.brange(u5, word, 7) == 0b11101) {
+            return if (ops.getbit(word, 6)) Opcode.jmp else Opcode.jsr;
+        }
+        if (ops.brange(u6, word, 6) != 0b111001) return Opcode.illegal;
+        
+        switch (ops.brange(u2, word, 4)) {
+            0b00 => return Opcode.trap,
+            0b01 => return if (ops.getbit(word, 3)) Opcode.unlk else Opcode.link,
+            0b10 => return Opcode.move_usp,
+            0b11 => {},
+        }
+        switch (ops.brange(u4, word, 0)) {
+            0b0000 => return Opcode.reset,
+            0b0001 => return Opcode.nop,
+            0b0010 => return Opcode.stop,
+            0b0011 => return Opcode.rte,
+            0b0101 => return Opcode.rts,
+            0b0110 => return Opcode.trapv,
+            0b0111 => return Opcode.rtr,
+            else => {},
+        }
         return Opcode.illegal;
     }
     
     fn decode_line_0101(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
+        if (ops.brange(u2, word, 6) == 0b11) {
+            return if (ops.brange(u3, word, 3) == 0b001) Opcode.db_cc else Opcode.s_cc;
+        } else {
+            return if(ops.getbit(word, 8)) Opcode.subq else Opcode.addq;
+        }
     }
     
     fn decode_line_0110(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
-    }
-    
-    fn decode_line_0111(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
+        return switch (ops.brange(u4, word, 8)) {
+            0b0000 => Opcode.bra,
+            0b0001 => Opcode.bsr,
+            else => Opcode.b_cc,
+        };
     }
     
     fn decode_line_1000(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
+        if (ops.brange(u2, word, 6) == 0b11) {
+            return if (ops.getbit(word, 8)) Opcode.divs else Opcode.divu;
+        }
+        
+        if (!ops.getbit(word, 8)) return Opcode.@"or";
+        return if (ops.brange(u2, word, 4) == 0b00) Opcode.sbcd else Opcode.@"or";
     }
     
     fn decode_line_1001(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
-    }
-    
-    fn decode_line_1010(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
+        if (ops.brange(u2, word, 6) == 0b11) return Opcode.suba;
+        if (!ops.getbit(word, 8)) return Opcode.sub;
+        return switch (ops.brange(u3, word, 3)) {
+            0b000, 0b001 => Opcode.subx,
+            else => Opcode.sub,
+        };
     }
     
     fn decode_line_1011(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
+        if (ops.brange(u2, word, 6) == 0b11) return Opcode.cmpa;
+        if (!ops.getbit(word, 8)) return Opcode.cmp;
+        return if (ops.brange(u3, word, 3) == 0b001) Opcode.cmpm else Opcode.eor;
     }
     
     fn decode_line_1100(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
+        if (ops.brange(u2, word, 6) == 0b11) {
+            return if (ops.getbit(word, 8)) Opcode.muls else Opcode.mulu;
+        }
+        return switch (ops.brange(u3, word, 3)) {
+            0b000, 0b001 => if (ops.brange(u2, word, 6) == 0b00) Opcode.abcd else Opcode.exg,
+            else => return Opcode.@"and",
+        };
     }
     
     fn decode_line_1101(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
+        if (ops.brange(u2, word, 6) == 0b11) return Opcode.adda;
+        return switch (ops.brange(u3, word, 3)) {
+            0b000, 0b001 => Opcode.addx,
+            else => Opcode.add,
+        };
     }
     
     fn decode_line_1110(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
-    }
-    
-    fn decode_line_1111(word: u16) Opcode {
-        _ = word;
-        return Opcode.illegal;
+        const invalid_size = ops.brange(u2, word, 6);
+        const instr_type = ops.brange(u2, word, if (invalid_size) 9 else 3);
+        switch (instr_type) {
+            0b00 => if (invalid_size) Opcode.as_d1 else Opcode.as_dn,
+            0b01 => if (invalid_size) Opcode.ls_d1 else Opcode.ls_dn,
+            0b10 => if (invalid_size) Opcode.roxs_d1 else Opcode.roxs_dn,
+            0b11 => if (invalid_size) Opcode.ros_d1 else Opcode.ros_dn,
+        }
     }
 };
 
@@ -249,4 +308,39 @@ test "line_0000" {
     try expect(Opcode.decode(0x03c0) == Opcode.bset);
     try expect(Opcode.decode(0x0380) == Opcode.bclr);
     try expect(Opcode.decode(0x0188) == Opcode.movep);
+}
+
+test "line_0000-line_0011" {
+    try expect(Opcode.decode(0x3040) == Opcode.movea);
+    try expect(Opcode.decode(0x2040) == Opcode.movea);
+    try expect(Opcode.decode(0x1200) == Opcode.move);
+    try expect(Opcode.decode(0x3200) == Opcode.move);
+    try expect(Opcode.decode(0x2200) == Opcode.move);
+}
+
+test "line_0100" {
+    try expect(Opcode.decode(0x40C0) == Opcode.move_from_sr);
+    try expect(Opcode.decode(0x44C0) == Opcode.move_to_ccr);
+    try expect(Opcode.decode(0x46C0) == Opcode.move_to_sr);
+    try expect(Opcode.decode(0x4AFC) == Opcode.illegal);
+    try expect(Opcode.decode(0x4AC0) == Opcode.tas);
+    try expect(Opcode.decode(0x4A40) == Opcode.tst);
+    try expect(Opcode.decode(0x4E40) == Opcode.trap);
+    try expect(Opcode.decode(0x4E50) == Opcode.link);
+    try expect(Opcode.decode(0x4E58) == Opcode.unlk);
+    try expect(Opcode.decode(0x4E70) == Opcode.reset);
+    try expect(Opcode.decode(0x4E71) == Opcode.nop);
+    try expect(Opcode.decode(0x4E72) == Opcode.stop);
+    try expect(Opcode.decode(0x4E73) == Opcode.rte);
+    try expect(Opcode.decode(0x4E75) == Opcode.rts);
+    try expect(Opcode.decode(0x4E76) == Opcode.trapv);
+    try expect(Opcode.decode(0x4E77) == Opcode.rtr);
+    try expect(Opcode.decode(0x4E90) == Opcode.jsr);
+    try expect(Opcode.decode(0x4ED0) == Opcode.jmp);
+    try expect(Opcode.decode(0x48A0) == Opcode.movem);
+    try expect(Opcode.decode(0x48E0) == Opcode.movem);
+    try expect(Opcode.decode(0x4C98) == Opcode.movem);
+    try expect(Opcode.decode(0x4CD8) == Opcode.movem);
+    try expect(Opcode.decode(0x41D0) == Opcode.lea);
+    try expect(Opcode.decode(0x4181) == Opcode.chk);
 }
