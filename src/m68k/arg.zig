@@ -33,6 +33,10 @@ pub const AddrMode = enum(u4) {
     pub fn from_binary_mode(mode: u1) AddrMode {
         return if (mode == 1) .addr_predec else .data_reg;
     }
+    
+    pub fn from_ea(ea: EffAddr) AddrMode {
+        return from_mode_xn(ea.mode, ea.xn);
+    }
 
     pub fn cycle_time(self: AddrMode, size: Size) u32 {
         return switch (self) {
@@ -84,11 +88,12 @@ pub const ExgMode = enum {
     addr,
     data_addr,
     
-    pub fn decode(bits: u5) ExgMode {
+    pub fn decode(bits: u5) ?ExgMode {
         return switch (bits) {
             0b01000 => .data,
             0b01001 => .addr,
             0b10001 => .data_addr,
+            else => null,
         };
     }
 };

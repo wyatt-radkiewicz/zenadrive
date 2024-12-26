@@ -36,7 +36,7 @@ pub const Instr = union(opc.Opcode) {
     clr: SizeEffAddr,
     neg: SizeEffAddr,
     not: SizeEffAddr,
-    ext: SizeReg,
+    ext: Ext,
     nbcd: arg.EffAddr,
     swap: u3,
     pea: arg.EffAddr,
@@ -75,7 +75,7 @@ pub const Instr = union(opc.Opcode) {
     subx: Opx,
     suba: Opa,
     eor: Opa,
-    cmpm: Opx,
+    cmpm: Cmpm,
     cmp: Opa,
     cmpa: Opa,
     mulu: RegEffAddr,
@@ -94,7 +94,7 @@ pub const Instr = union(opc.Opcode) {
     lsd: Shift,
     roxd: Shift,
     rod: Shift,
-    
+
     pub const SizeEffAddr = struct {
         size: arg.Size,
         ea: arg.EffAddr,
@@ -103,7 +103,7 @@ pub const Instr = union(opc.Opcode) {
         reg: u3,
         ea: arg.EffAddr,
     };
-    pub const SizeReg = struct {
+    pub const Ext = struct {
         size: arg.Size,
         reg: u3,
     };
@@ -165,6 +165,11 @@ pub const Instr = union(opc.Opcode) {
     pub const Opx = struct {
         regs: [2]u3,
         size: arg.Size,
+        mode: arg.AddrMode,
+    };
+    pub const Cmpm = struct {
+        regs: [2]u3,
+        size: arg.Size,
     };
     pub const Exg = struct {
         mode: arg.ExgMode,
@@ -181,4 +186,156 @@ pub const Instr = union(opc.Opcode) {
         size: arg.Size,
         reg: u3,
     };
+
+    // If the encoding can not be converted to the instruction encoding it will return illegal instr
+    pub fn decode(word: u16) Instr {
+        const opcode = opc.Opcode.decode(word);
+        return @unionInit(Instr, @tagName(opcode), switch (opcode) {
+            .ori,
+            .andi,
+            .subi,
+            .addi,
+            .eori,
+            .cmpi,
+            .negx,
+            .clr,
+            .neg,
+            .not,
+            .tst,
+            => lssea(word) orelse return Instr.illegal,
+            .btsti,
+            .bchgi,
+            .bseti,
+            .bclri,
+            .move_from_sr,
+            .move_to_ccr,
+            .move_to_sr,
+            .nbcd,
+            .pea,
+            .tas,
+            .jsr,
+            .jmp,
+            .divu,
+            .divs,
+            .mulu,
+            .muls,
+            => lsea(word),
+            .btst, .bchg, .bset, .bclr, .lea, .chk => RegEffAddr{
+                .reg = op.brange(u3, word, 9),
+                .ea = lsea(word),
+            },
+            .movep => Movep{
+                .dn = op.brange(u3, word, 9),
+                .an = op.brange(u3, word, 0),
+                .dir = arg.MemDir.decode(op.brange(u1, word, 7), true),
+                .size = arg.Size.from_bit(op.brange(u1, word, 6)),
+            },
+            .move, .movea => Move{
+                .size = arg.Size.from_bits(op.brange(u2, word, 12), false).?,
+                .src = lsea(word),
+                .dst = arg.EffAddr{ .mode = op.brange(u3, word, 6), .xn = op.brange(u3, word, 9) },
+            },
+            .ext => Ext{
+                .size = arg.Size.from_bit(op.brange(u1, word, 6)),
+                .reg = op.brange(u3, word, 0),
+            },
+            .link, .unlk => op.brange(u3, word, 0),
+            .move_usp => MoveUsp{
+                .dir = arg.MemDir.decode(op.brange(u1, word, 3), false),
+                .reg = op.brange(u3, word, 0),
+            },
+            .trap => op.brange(u4, word, 0),
+            .movem => Movem{
+                .dir = arg.MemDir.decode(op.brange(u1, word, 10), false),
+                .size = arg.Size.from_bit(op.brange(u1, word, 6)),
+                .ea = lsea(word),
+            },
+            .addq, .subq => Arithq{
+                .data = op.brange(u3, word, 9),
+                .dst = lssea(word) orelse return Instr.illegal,
+            },
+            .s_cc => Scc{
+                .cond = @bitCast(op.brange(u4, word, 8)),
+                .dst = lsea(word),
+            },
+            .db_cc => Dbcc{
+                .cond = @bitCast(op.brange(u4, word, 8)),
+                .reg = op.brange(u3, word, 0),
+            },
+            .bra, .bsr => lsi8(word),
+            .b_cc => Bcc{
+                .cond = @bitCast(op.brange(u4, word, 8)),
+                .disp = lsi8(word),
+            },
+            .moveq => Moveq{
+                .reg = op.brange(u3, word, 9),
+                .data = lsi8(word),
+            },
+            .sbcd, .abcd => RegReg{
+                .mode = arg.AddrMode.from_binary_mode(op.brange(u1, word, 3)),
+                .regs = getregs(word),
+            },
+            .@"or", .sub, .eor, .@"and", .add => Opd{
+                .reg = op.brange(u3, word, 9),
+                .size = arg.Size.from_bits(op.brange(u2, word, 6)),
+                .dir = @bitCast(op.brange(u1, word, 8)),
+                .ea = lsea(word),
+            },
+            .subx, .addx => Opx{
+                .regs = getregs(word),
+                .size = arg.Size.from_bits(op.brange(u2, word, 6)),
+                .mode = arg.AddrMode.from_binary_mode(op.brange(u1, word, 3)),
+            },
+            .suba, .cmpa, .adda => Opa{
+                .reg = op.brange(u3, word, 9),
+                .size = arg.Size.from_bit(op.brange(u1, word, 8)),
+                .ea = lsea(word),
+            },
+            .cmpm => Cmpm{
+                .regs = getregs(word),
+                .size = arg.Size.from_bits(op.brange(u2, word, 6)),
+            },
+            .cmp => Opa{
+                .reg = op.brange(u3, word, 9),
+                .size = arg.Size.from_bits(op.brange(u2, word, 6)),
+                .ea = lsea(word),
+            },
+            .exg => Exg{
+                .mode = arg.ExgMode.decode(op.brange(u5, word, 3)) orelse return Instr.illegal,
+                .regs = getregs(word),
+            },
+            .@"asm", .lsm, .roxm, .rom => ShiftMem{
+                .dir = @bitCast(op.brange(u1, word, 8)),
+                .ea = lsea(word),
+            },
+            .asd, .lsd, .roxd, .rod => Shift{
+                .dir = @bitCast(op.brange(u1, word, 8)),
+                .rotmode = @bitCast(op.brange(u1, word, 5)),
+                .rot = op.brange(u3, word, 9),
+                .size = arg.Size.from_bits(op.brange(u2, word, 6)),
+                .reg = op.brange(u3, word, 0),
+            },
+            .illegal, .reset, .nop, .stop, .rte, .rts, .trapv, .rtr => {},
+        });
+    }
+
+    // Get least significant effective address mode from a word
+    fn lsea(word: u16) arg.EffAddr {
+        return .{ .mode = op.brange(u3, word, 3), .xn = op.brange(u3, word, 0) };
+    }
+
+    fn lssea(word: u16) ?SizeEffAddr {
+        return .{
+            .size = arg.Size.from_bits(op.brange(u2, word, 6), true) orelse return null,
+            .ea = lsea(word),
+        };
+    }
+
+    fn lsi8(word: u16) i8 {
+        return @bitCast(op.brange(u8, word, 0));
+    }
+
+    fn getregs(word: u16) [2]u3 {
+        return .{ op.brange(u3, word, 9), op.brange(u3, word, 0) };
+    }
 };
