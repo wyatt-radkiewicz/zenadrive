@@ -1,5 +1,6 @@
 const meta = @import("std").meta;
 const expect = @import("std").testing.expect;
+const op = @import("op.zig");
 const Self = @This();
 
 d: [8]u32,
@@ -30,66 +31,38 @@ pub const Status = packed struct {
     t: bool,
     
     pub fn reset() Status {
-        return @bitCast(0b0010_0111_0000_0000);
+        return @bitCast(@as(u16, 0b0010_0111_0000_0000));
     }
 };
 
 // Store to registers
 pub fn std(self: *Self, reg: u3, data: anytype) void {
-    self.d[reg] = overwrite(self.d[reg], data);
+    self.d[reg] = op.overwrite(self.d[reg], data);
 }
 pub fn sta(self: *Self, reg: u3, data: anytype) void {
-    self.a[reg] = extend(u32, data);
+    self.a[reg] = op.extend(u32, data);
 }
 
 // Load from registers
 pub fn ldd(self: *Self, reg: u3, comptime T: type) T {
-    return @as(T, self.d[reg]);
+    return @as(T, @truncate(self.d[reg]));
 }
 pub fn lda(self: *Self, reg: u3, comptime T: type) u32 {
-    return extend(u32, @as(T, @truncate(self.a[reg])));
+    return op.extend(u32, @as(T, @truncate(self.a[reg])));
 }
 
-// Extend a type, setting everything to the extended value of dst
-pub fn extend(Dst: type, src: anytype) Dst {
-    // Get type of src but signed
-    const dst_signed = meta.Int(.signed, @typeInfo(Dst).Int.bits);
-    const src_signed = meta.Int(.signed, @typeInfo(@TypeOf(src)).Int.bits);
-    const src_signed_converted = @as(src_signed, @bitCast(src));
+test "Regs store/load" {
+    var regs = Self.reset();
     
-    // Extend dst and return
-    return @bitCast(@as(dst_signed, @intCast(src_signed_converted)));
-}
-
-// Overwrite a type, setting only the bit you need
-pub fn overwrite(dst: anytype, src: anytype) @TypeOf(dst) {
-    // Generate the mask
-    const mask = comptime genMask: {
-        var mask: @TypeOf(dst) = 0;
-        for (0..@sizeOf(@TypeOf(src))) |_| {
-            mask <<= 8;
-            mask |= 0xFF;
-        }
-        break :genMask mask;
-    };
+    regs.std(0, @as(u32, 0xFFFFFFFF));
+    try expect(regs.ldd(0, u32) == 0xFFFFFFFF);
+    regs.std(0, @as(u16, 0));
+    try expect(regs.ldd(0, u32) == 0xFFFF0000);
     
-    // Get type of src but unsigned
-    const unsigned = meta.Int(.unsigned, @typeInfo(@TypeOf(src)).Int.bits);
-    
-    // Return overwrite
-    return dst & ~mask | @as(unsigned, @bitCast(src));
-}
-
-test "overwrite" {
-    const dst: u32 = 0x420;
-    const src: u8 = 0xFF;
-    try expect(overwrite(dst, src) == 0x4FF);
-}
-
-test "extend" {
-    var src: u8 = 0xFF;
-    try expect(extend(u32, src) == 0xFFFFFFFF);
-    
-    src = 0x7F;
-    try expect(extend(u32, src) == 0x7F);
+    regs.sta(0, @as(u16, 0xFFFF));
+    try expect(regs.a[0] == 0xFFFFFFFF);
+    try expect(regs.lda(0, u16) == 0xFFFFFFFF);
+    regs.sta(0, @as(u16, 0x7FFF));
+    try expect(regs.a[0] == 0x00007FFF);
+    try expect(regs.lda(0, u16) == 0x00007FFF);
 }
