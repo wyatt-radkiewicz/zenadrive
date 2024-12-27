@@ -2,6 +2,7 @@ const std = @import("std");
 const opc = @import("opcode.zig");
 const op = @import("op.zig");
 const arg = @import("arg.zig");
+const AddrMode = arg.AddrMode;
 
 // Holds data from first word about the instruction used in table to generate cycle timings and
 // other data to make instruction decoding easier
@@ -148,7 +149,7 @@ pub const Instr = union(opc.Opcode) {
         data: i8,
     };
     pub const RegReg = struct {
-        mode: arg.AddrMode,
+        mode: AddrMode,
         regs: [2]u3,
     };
     pub const Opd = struct {
@@ -165,7 +166,7 @@ pub const Instr = union(opc.Opcode) {
     pub const Opx = struct {
         regs: [2]u3,
         size: arg.Size,
-        mode: arg.AddrMode,
+        mode: AddrMode,
     };
     pub const Cmpm = struct {
         regs: [2]u3,
@@ -177,7 +178,7 @@ pub const Instr = union(opc.Opcode) {
     };
     pub const ShiftMem = struct {
         dir: arg.ShiftDir,
-        ea: arg.AddrMode,
+        ea: AddrMode,
     };
     pub const Shift = struct {
         dir: arg.ShiftDir,
@@ -272,7 +273,7 @@ pub const Instr = union(opc.Opcode) {
                 .data = lsi8(word),
             },
             .sbcd, .abcd => RegReg{
-                .mode = arg.AddrMode.from_binary_mode(op.brange(u1, word, 3)),
+                .mode = AddrMode.from_binary_mode(op.brange(u1, word, 3)),
                 .regs = getregs(word),
             },
             .@"or", .sub, .eor, .@"and", .add => Opd{
@@ -284,7 +285,7 @@ pub const Instr = union(opc.Opcode) {
             .subx, .addx => Opx{
                 .regs = getregs(word),
                 .size = arg.Size.from_bits(op.brange(u2, word, 6)),
-                .mode = arg.AddrMode.from_binary_mode(op.brange(u1, word, 3)),
+                .mode = AddrMode.from_binary_mode(op.brange(u1, word, 3)),
             },
             .suba, .cmpa, .adda => Opa{
                 .reg = op.brange(u3, word, 9),
@@ -324,6 +325,7 @@ pub const Instr = union(opc.Opcode) {
         return .{ .mode = op.brange(u3, word, 3), .xn = op.brange(u3, word, 0) };
     }
 
+    // Get least significant size/effective addressing mode
     fn lssea(word: u16) ?SizeEffAddr {
         return .{
             .size = arg.Size.from_bits(op.brange(u2, word, 6), true) orelse return null,
@@ -337,5 +339,110 @@ pub const Instr = union(opc.Opcode) {
 
     fn getregs(word: u16) [2]u3 {
         return .{ op.brange(u3, word, 9), op.brange(u3, word, 0) };
+    }
+
+    // Validate arguments/operands given to this instruction
+    pub fn validate(self: Instr) bool {
+        return switch (self) {
+            .add, .sub => |instr| valid: {
+                const md = AddrMode.from_ea(instr.ea);
+                if (instr.size == .byte and md == .addr_reg) return false;
+                if (instr.dir == .ea_dn) return true;
+                break :valid chkmd(md, &[_]AddrMode{ .data_reg, .addr_reg, .imm, .pc_disp, .pc_idx });
+            },
+            .addi,
+            .andi,
+            .eori,
+            .neg,
+            .negx,
+            .not,
+            .ori,
+            .subi,
+            => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .addr_reg, .imm, .pc_disp, .pc_idx }),
+            .tst => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .addr_reg, .imm }),
+            .bchg,
+            .bclr,
+            .bset,
+            => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .addr_reg, .imm, .pc_disp, .pc_idx }),
+            .bchgi,
+            .bclri,
+            .bseti,
+            .clr,
+            .move_from_sr,
+            .nbcd,
+            .tas,
+            => |ea| chkmd(AddrMode.from_ea(ea), &[_]AddrMode{ .addr_reg, .imm, .pc_disp, .pc_idx }),
+            .pea => |ea| chkmd(AddrMode.from_ea(ea), &[_]AddrMode{ .data_reg, .addr_reg, .imm, .addr_postinc, .addr_predec }),
+            .btst,
+            .chk,
+            .divu,
+            .divs,
+            .mulu,
+            .muls,
+            => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{.addr_reg}),
+            .move_to_sr, .move_to_ccr => |ea| chkmd(AddrMode.from_ea(ea), &[_]AddrMode{.addr_reg}),
+            .btsti => |ea| chkmd(AddrMode.from_ea(ea), &[_]AddrMode{ .addr_reg, .imm }),
+            .addq, .subq => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .imm, .pc_disp, .pc_idx }),
+            .@"and", .@"or" => |instr| valid: {
+                const md = AddrMode.from_ea(instr.ea);
+                if (instr.dir == .ea_dn) return md != .addr_reg;
+                break :valid chkmd(md, &[_]AddrMode{ .data_reg, .addr_reg, .imm, .pc_disp, .pc_idx });
+            },
+            .@"asm",
+            .lsm,
+            .rom,
+            .roxm,
+            => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .data_reg, .addr_reg, .imm, .pc_disp, .pc_idx }),
+            .cmp => |i| AddrMode.from_ea(i.ea) != .addr_reg or i.size != .byte,
+            .cmpi => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .addr_reg, .imm }),
+            .eor => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .addr_reg, .imm, .pc_disp, .pc_idx }),
+            .jmp, .jsr => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .data_reg, .addr_reg, .addr_postinc, .addr_predec, .imm }),
+            .lea => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .data_reg, .addr_reg, .addr_postinc, .addr_predec, .imm }),
+            .move => |i| chkmd(AddrMode.from_ea(i.dst), &[_]AddrMode{ .data_reg, .imm, .pc_disp, .pc_idx }),
+            .movem => |instr| valid: {
+                const md = AddrMode.from_ea(instr.ea);
+                if (instr.dir == .reg_to_mem) {
+                    break :valid chkmd(md, &[_]AddrMode{ .data_reg, .addr_reg, .imm, .addr_postinc, .pc_disp, .pc_idx });
+                } else {
+                    break :valid chkmd(md, &[_]AddrMode{ .data_reg, .addr_reg, .imm, .addr_predec });
+                }
+            },
+            .s_cc => |i| chkmd(AddrMode.from_ea(i.dst), &[_]AddrMode{ .addr_reg, .imm, .pc_disp, .pc_idx }),
+            .abcd,
+            .adda,
+            .addx,
+            .subx,
+            .swap,
+            .andi_to_sr,
+            .andi_to_ccr,
+            .asd,
+            .cmpa,
+            .cmpm,
+            .eori_to_ccr,
+            .eori_to_sr,
+            .exg,
+            .ext,
+            .illegal,
+            .link,
+            .lsd,
+            .movea,
+            .nop,
+            .ori_to_ccr,
+            .ori_to_sr,
+            .rtr,
+            .rts,
+            .sbcd,
+            .suba,
+            .trap,
+            .trapv,
+            .unlk,
+            => true,
+        };
+    }
+
+    fn chkmd(mode: AddrMode, invalid: []const AddrMode) bool {
+        return for (invalid) |currmode| {
+            if (mode == currmode) break false;
+        } else true;
     }
 };
