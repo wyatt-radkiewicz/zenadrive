@@ -34,7 +34,7 @@ pub const AddrMode = enum(u4) {
         return if (mode == 1) .addr_predec else .data_reg;
     }
     
-    pub fn from_ea(ea: EffAddr) AddrMode {
+    pub fn from_ea(ea: EffAddr) ?AddrMode {
         return from_mode_xn(ea.mode, ea.xn);
     }
 
