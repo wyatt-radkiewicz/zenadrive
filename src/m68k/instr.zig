@@ -478,7 +478,7 @@ pub const Instr = union(opc.Opcode) {
             .eor => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .addr_reg, .imm, .pc_disp, .pc_idx }),
             .jmp, .jsr => |ea| chkmd(AddrMode.from_ea(ea), &[_]AddrMode{ .data_reg, .addr_reg, .addr_postinc, .addr_predec, .imm }),
             .lea => |i| chkmd(AddrMode.from_ea(i.ea), &[_]AddrMode{ .data_reg, .addr_reg, .addr_postinc, .addr_predec, .imm }),
-            .move => |i| chkmd(AddrMode.from_ea(i.dst), &[_]AddrMode{ .data_reg, .imm, .pc_disp, .pc_idx }),
+            .move => |i| chkmd(AddrMode.from_ea(i.dst), &[_]AddrMode{ .addr_reg, .imm, .pc_disp, .pc_idx }),
             .movem => |instr| valid: {
                 const md = AddrMode.from_ea(instr.ea);
                 if (instr.dir == .reg_to_mem) {
@@ -537,6 +537,63 @@ pub const Instr = union(opc.Opcode) {
         return for (invalid) |currmode| {
             if (mode == currmode) break false;
         } else true;
+    }
+    
+    // Get cycle timing for this instruction
+    pub fn cycles(self: Instr) u32 {
+        return switch (self) {
+            .move, .movea => |i| 4 + AddrMode.from_ea(i.dst).?.cycles() + AddrMode.from_ea(i.src).?.cycles(),
+            .add, .@"and", .@"or", .sub => |i| calc: {
+                const ea = AddrMode.from_ea(i.ea).?.cycles();
+                switch (i.size) {
+                    .byte, .word => {
+                        break :calc ea + if (i.dir == .dn_ea and isea_mem(i.ea)) 8 else 4;
+                    },
+                    .long => {
+                        if (i.dir == .dn_ea and isea_mem(i.ea)) break :calc 12 + ea;
+                        if (isea_immdir(i.ea)) break :calc 8 + ea;
+                        break :calc 6 + ea;
+                    },
+                }
+            },
+            .adda, .suba => |i| switch (i.size) {
+                .byte, .word => 8 + AddrMode.from_ea(i.ea).?.cycles(),
+                .long => 6 + AddrMode.from_ea(i.ea).?.cycles(),
+            },
+            .cmp => |i| 4 + AddrMode.from_ea(i.ea).?.cycles() + if (i.size == .long) 2 else 0,
+            .cmpa => |i| 6 + AddrMode.from_ea(i.ea).?.cycles(),
+            .divs => |i| 158 + AddrMode.from_ea(i.ea).?.cycles(),
+            .divu => |i| 140 + AddrMode.from_ea(i.ea).?.cycles(),
+            .eor => |i| calc: {
+                const md = AddrMode.from_ea(i.ea).?;
+                var time = if (md == .data_reg) 4 else 8 + md.cycles();
+                if (i.size == .long) time += 4;
+                break :calc time;
+            },
+            .muls, .mulu => |i| 70 + AddrMode.from_ea(i.ea).?.cycles(),
+            .addi => |i| calc: {
+                const md = AddrMode.from_ea(i.ea).?;
+                break :calc switch (i.size) {
+                    .byte, .word => if (md == .data_reg) 8 else 12 + md.cycles(),
+                    .long => if (md == .data_reg) 16 else 20 + md.cycles(),
+                };
+            },
+            .addq => |i| calc: {
+                const md = AddrMode.from_ea(i.dst.ea).?;
+                break :calc switch (i.size) {
+                    .byte, .word => 
+                };
+            },
+        };
+    }
+    
+    fn isea_mem(ea: arg.EffAddr) bool {
+        const mode = AddrMode.from_ea(ea);
+        return chkmd(mode, &[_]AddrMode{ .data_reg, .addr_reg, .imm });
+    }
+    
+    fn isea_immdir(ea: arg.EffAddr) bool {
+        return !isea_mem(ea);
     }
 };
 

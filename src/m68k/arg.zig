@@ -38,7 +38,7 @@ pub const AddrMode = enum(u4) {
         return from_mode_xn(ea.mode, ea.xn);
     }
 
-    pub fn cycle_time(self: AddrMode, size: Size) u32 {
+    pub fn cycles(self: AddrMode, size: Size) u32 {
         return switch (self) {
             .data_reg, .addr_reg => 0,
             .addr, .addr_postinc, .imm => 4,
@@ -98,7 +98,7 @@ pub const ExgMode = enum {
     }
 };
 
-pub const ArgDir = enum(u1) { dn_ea, ea_dn };
+pub const ArgDir = enum(u1) { ea_dn, dn_ea };
 pub const ShiftDir = enum(u1) { right, left };
 pub const Rotation = enum(u1) { imm, reg };
 pub const Cond = enum(u4) { t, f, hi, ls, cc, cs, ne, eq, vc, vs, pl, mi, ge, lt, gt, le };
