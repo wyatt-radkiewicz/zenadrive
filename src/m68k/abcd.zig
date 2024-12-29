@@ -1,0 +1,66 @@
+const enc = @import("cpu/enc.zig");
+const cpu = @import("cpu/cpu.zig");
+
+pub const Encoding = packed struct {
+    src: u3,
+    rm: bool,
+    pattern: enc.MatchBits(5, 0b10000),
+    dst: u3,
+    line: enc.MatchBits(4, 0b1100),
+};
+
+pub const Tester = struct {
+    // abcd.b d0,d1 ; 6 cycles
+    pub const code = [_]u16{ 0xC300 };
+    pub fn validate(state: *const cpu.State) bool {
+        if (state.cycles != 6) return false;
+        return true;
+    }
+};
+
+pub fn run(state: *cpu.State) void {
+    // Get instruction encoding
+    const instr: Encoding = @bitCast(state.ir);
+
+    // Get addressing mode
+    const mode = enc.AddrMode.toModeBits(if (instr.rm)
+        enc.AddrMode.addr_predec
+    else
+        enc.AddrMode.data_reg)[0];
+
+    // Get source and destination ready
+    const src = cpu.EffAddr(enc.Size.byte).calc(state, mode, instr.src).load(state);
+    const dst_ea = cpu.EffAddr(enc.Size.byte).calc(state, mode, instr.dst);
+
+    // Compute addition
+    const extend: cpu.Bcd = @bitCast(@as(u8, @intFromBool(state.regs.sr.x)));
+    var carry: u1 = 0;
+    var bcd: cpu.Bcd = @bitCast(src);
+    
+    // Add the destination to source
+    {
+        const carry_res = cpu.Bcd.add(bcd, @bitCast(dst_ea.load(state)));
+        bcd = carry_res[0];
+        carry |= carry_res[1];
+    }
+    
+    // Add extend bit
+    {
+        const carry_res = cpu.Bcd.add(bcd, extend);
+        bcd = carry_res[0];
+        carry |= carry_res[1];
+    }
+    
+    // Save flags
+    state.regs.sr.c = carry == 1;
+    state.regs.sr.x = carry == 1;
+    const byte = @as(u8, @bitCast(bcd));
+    if (byte != 0) state.regs.sr.z = false;
+    
+    // Store back to destination
+    dst_ea.store(state, byte);
+
+    // Add processing time and fetch next instruction
+    state.cycles += 2;
+    state.ir = state.programFetch(enc.Size.word);
+}

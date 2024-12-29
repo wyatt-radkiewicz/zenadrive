@@ -90,21 +90,26 @@ test "Instructions" {
     var state = cpu.State.init(&bus);
     inline for (instrs) |instr| {
         @memset(&bus.bytes, 0);
-        bus.wr32(0, 0x100);
-        bus.wr32(4, 0x8);
+        bus.wr32(0, 0x100); // Write stack pointer address
+        bus.wr32(4, 0x8); // Write program start address
         var addr: u24 = 8;
+        
+        // Write program code
         for (instr.Tester.code) |word| {
             bus.wr16(addr, word);
             addr += 2;
         }
+        
+        // Reset and validate instruction
         reset(&state);
         state.cycles = 0;
-        runInstr(&state);
+        while (state.regs.pc <= 8 + instr.Tester.code.len * 2) runInstr(&state);
         try std.testing.expect(instr.Tester.validate(&state));
     }
 }
 
 // List of cpu instructions (as types of structs)
 const instrs = .{
-    @import("m68k/addi.zig")
+    @import("m68k/abcd.zig"),
+    @import("m68k/add_to_dn.zig"),
 };

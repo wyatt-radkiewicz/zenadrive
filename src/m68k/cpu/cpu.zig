@@ -9,7 +9,7 @@ pub const State = struct {
     cycles: u64, // Number of cycles the cpu has been emulating
     pending_exception: ?u8, // What exception to run next if we need to
     halted: bool, // Can the cpu execute instructions?
-    
+
     /// bus_impl should be a pointer to a bus implementation see Bus type for more details
     pub fn init(bus_impl: anytype) State {
         return .{
@@ -21,7 +21,7 @@ pub const State = struct {
             .halted = true,
         };
     }
-    
+
     pub fn handleException(self: *State) void {
         const exception = self.pending_exception orelse return;
         self.pending_exception = null;
@@ -42,6 +42,15 @@ pub const State = struct {
         }
     }
     
+    // Set flags for normal arithmatic operations
+    pub fn setArithFlags(self: *State, comptime sz: enc.Size, add: AddFlags(sz)) void {
+        self.regs.sr.c = add.carry;
+        self.regs.sr.v = add.overflow;
+        self.regs.sr.z = add.val == 0;
+        self.regs.sr.z = @as(sz.getType(.signed), @bitCast(add.val)) < 0;
+        self.regs.sr.x = add.carry;
+    }
+
     pub fn programFetch(self: *State, comptime sz: enc.Size) sz.getType(.unsigned) {
         switch (sz) {
             .byte, .word => {
@@ -56,7 +65,7 @@ pub const State = struct {
             },
         }
     }
-    
+
     pub fn rdBus(self: *State, comptime sz: enc.Size, fulladdr: u32) sz.getType(.unsigned) {
         const addr: u24 = @truncate(fulladdr);
         self.cycles += switch (sz) {
@@ -69,7 +78,7 @@ pub const State = struct {
             .long => self.bus.rd32(addr),
         };
     }
-    
+
     pub fn wrBus(self: *State, comptime sz: enc.Size, fulladdr: u32, data: sz.getType(.unsigned)) void {
         const addr: u24 = @truncate(fulladdr);
         self.cycles += switch (sz) {
@@ -84,18 +93,64 @@ pub const State = struct {
     }
 };
 
+/// Helper functions for overflow/carry etc
+pub fn AddFlags(comptime sz: enc.Size) type {
+    const Data = sz.getType(.unsigned);
+    return struct {
+        val: Data,
+        carry: bool,
+        overflow: bool,
+        
+        pub fn add(lhs: Data, rhs: Data) @This() {
+            const S = sz.getType(.signed);
+            
+            return .{
+                .val = lhs +% rhs,
+                .carry = @addWithOverflow(lhs, rhs)[1] != 0,
+                .overflow = @addWithOverflow(@as(S, @bitCast(lhs)), @as(S, @bitCast(rhs)))[1] != 0,
+            };
+        }
+    };
+}
+
+/// Helper struct to represent binary coded decimal bytes
+pub const Bcd = packed struct {
+    ones: u4,
+    tens: u4,
+
+    pub fn add(lhs: Bcd, rhs: Bcd) struct { Bcd, u1 } {
+        var carried: u1 = 0;
+        var out = lhs;
+        var ones: u32 = out.ones + rhs.ones;
+        var tens: u32 = out.tens + rhs.tens;
+
+        if (ones > 9) {
+            ones %= 10;
+            carried = 1;
+        }
+        out.ones = @truncate(ones);
+
+        if (tens > 9) {
+            tens %= 10;
+            carried = 1;
+        }
+        out.tens = @truncate(tens);
+        return .{ out, carried };
+    }
+};
+
 /// Helper function used to calculate effective addresses
 pub fn EffAddr(comptime sz: enc.Size) type {
     const Data = sz.getType(.unsigned);
-    
+
     return union(enum) {
         data_reg: u3,
         addr_reg: u3,
         mem: u32,
         imm: Data,
-        
+
         const Self = @This();
-        
+
         // Load data from calculated address
         pub fn load(self: Self, cpu: *State) Data {
             return switch (self) {
@@ -105,7 +160,7 @@ pub fn EffAddr(comptime sz: enc.Size) type {
                 .imm => |data| data,
             };
         }
-        
+
         // Store data to calculated address
         pub fn store(self: Self, cpu: *State, data: Data) void {
             switch (self) {
@@ -122,7 +177,7 @@ pub fn EffAddr(comptime sz: enc.Size) type {
                 .imm => unreachable,
             }
         }
-        
+
         // Calculate address only (no data reading)
         pub fn calc(cpu: *State, m: u3, xn: u3) Self {
             const mode = enc.AddrMode.fromModeBits(m, xn) orelse unreachable;
@@ -223,7 +278,7 @@ pub const Bus = struct {
             .wr32fn = &funcs.wr32,
         };
     }
-    
+
     // Helper functions so you don't have to pass the context pointer every time
     fn rd8(self: *const Bus, addr: u24) u8 {
         return self.rd8fn(self.ctx, addr);
@@ -254,13 +309,13 @@ pub const Regs = struct {
 
     // Stack pointer register
     pub const sp = 7;
-    
+
     pub const Status = packed struct {
         c: bool = false, // Carry
         v: bool = false, // Overflow
         z: bool = false, // Zero
         n: bool = false, // Negative
-        e: bool = false, // Extend
+        x: bool = false, // Extend
         reserved_ccr: u3 = 0,
         ipl: u3 = 7, // Interrupt priority level
         reserved_sr: u2 = 0,
@@ -268,7 +323,7 @@ pub const Regs = struct {
         reserved_trace: u1 = 0,
         t: bool = false, // Trace mode enable
     };
-    
+
     pub fn init() Regs {
         return .{
             .d = [1]u32{0} ** 8,
