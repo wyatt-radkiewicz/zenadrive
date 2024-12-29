@@ -131,7 +131,7 @@ pub fn AddFlags(comptime sz: enc.Size) type {
         carry: bool,
         overflow: bool,
         
-        pub fn add(lhs: Data, rhs: Data) @This() {
+        pub inline fn add(lhs: Data, rhs: Data) @This() {
             const S = sz.getType(.signed);
             
             return .{
@@ -210,12 +210,12 @@ pub fn EffAddr(comptime sz: enc.Size) type {
                 .addr => return Self{ .mem = cpu.regs.a[xn] },
                 .addr_postinc => {
                     const addr = cpu.regs.a[xn];
-                    cpu.regs.a[xn] += @sizeOf(Data);
+                    cpu.regs.a[xn] +%= @sizeOf(Data);
                     return Self{ .mem = addr };
                 },
                 .addr_predec => {
                     cpu.cycles += 2;
-                    cpu.regs.a[xn] -= @sizeOf(Data);
+                    cpu.regs.a[xn] -%= @sizeOf(Data);
                     return Self{ .mem = cpu.regs.a[xn] };
                 },
                 .addr_disp, .pc_disp => {

@@ -121,4 +121,5 @@ const instrs = .{
     @import("m68k/adda.zig"),
     @import("m68k/addi.zig"),
     @import("m68k/addq.zig"),
+    @import("m68k/addx.zig"),
 };

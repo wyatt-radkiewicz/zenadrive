@@ -61,6 +61,13 @@ pub fn run(state: *cpu.State) void {
     dst_ea.store(state, byte);
 
     // Add processing time and fetch next instruction
-    state.cycles += 2;
+    switch (dst_ea) {
+        // Abcd seems to have some sort of optimization in the microcode for this so we
+        // automatically remove 2 of the cycles that were added in effective address calculation
+        .mem => state.cycles -= 2,
+        
+        // Otherwise it seems to add 2 cycles
+        else => state.cycles += 2,
+    }
     state.ir = state.programFetch(enc.Size.word);
 }
