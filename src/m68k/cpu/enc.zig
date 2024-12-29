@@ -1,17 +1,14 @@
 const std = @import("std");
-const ea = @import("ea.zig");
 
 pub const Size = enum(u2) {
     byte,
     word,
     long,
     
-    pub fn match(bits: u2) ?Size {
+    pub fn match(bits: u2) bool {
         return switch (bits) {
-            0b00 => .byte,
-            0b01 => .word,
-            0b10 => .long,
-            0b11 => null,
+            0b11 => false,
+            else => true,
         };
     }
     
@@ -54,7 +51,8 @@ pub const AddrMode = enum {
     
     pub fn fromModeBits(m: u3, xn: u3) ?AddrMode{
         if (m == 0b111) {
-            return std.meta.intToEnum(AddrMode.abs_word + xn) catch return null;
+            const variant = @intFromEnum(AddrMode.abs_word) + xn;
+            return std.meta.intToEnum(AddrMode, variant) catch return null;
         } else {
             return @enumFromInt(m);
         }
@@ -78,13 +76,13 @@ pub fn MatchEffAddr(comptime invalid_modes: []const AddrMode) type {
         
         const Self = @This();
         
-        pub fn match(bits: u6) ?Self {
+        pub fn match(bits: u6) bool {
             const self: Self = @bitCast(bits);
-            const addrmode = AddrMode.fromModeBits(self.m, self.xn) orelse return null;
+            const addrmode = AddrMode.fromModeBits(self.m, self.xn) orelse return false;
             for (invalid_modes) |mode| {
-                if (addrmode == mode) return null;
+                if (addrmode == mode) return false;
             }
-            return self;
+            return true;
         }
     };
 }
@@ -96,10 +94,25 @@ pub fn MatchBits(comptime length: u16, comptime pattern: std.meta.Int(.unsigned,
     return packed struct {
         encoded_bits: Pattern,
         
-        pub fn match(bits: Pattern) ?@This() {
-            return if (bits != pattern) null else .{
-                .encoded_bits = bits,
-            };
+        pub fn match(bits: Pattern) bool {
+            return bits == pattern;
         }
     };
+}
+
+// Bit type of type
+pub fn ToInt(comptime T: type) type {
+    return std.meta.Int(.unsigned, @bitSizeOf(T));
+}
+
+// Match children of a structure
+pub fn matchChildren(comptime T: type, bits: ToInt(T)) bool {
+    const info = @typeInfo(T).Struct;
+    var bits_left = bits;
+    inline for (info.fields) |field| {
+        const field_bits: ToInt(field.type) = @truncate(bits_left);
+        if (!field.type.match(field_bits)) return false;
+        bits_left >>= @bitSizeOf(field.type);
+    }
+    return true;
 }

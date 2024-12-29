@@ -7,7 +7,9 @@ pub const State = struct {
     regs: Regs, // Normal registers
     ir: u16, // Internal instruction opcode register
     cycles: u64, // Number of cycles the cpu has been emulating
-
+    pending_exception: ?u8, // What exception to run next if we need to
+    halted: bool, // Can the cpu execute instructions?
+    
     /// bus_impl should be a pointer to a bus implementation see Bus type for more details
     pub fn init(bus_impl: anytype) State {
         return .{
@@ -15,7 +17,29 @@ pub const State = struct {
             .regs = Regs.init(),
             .ir = 0,
             .cycles = 0,
+            .pending_exception = null,
+            .halted = true,
         };
+    }
+    
+    pub fn handleException(self: *State) void {
+        const exception = self.pending_exception orelse return;
+        self.pending_exception = null;
+        switch (std.meta.intToEnum(Vector, exception) catch {
+            return;
+        }) {
+            .reset => {
+                self.halted = false;
+                self.regs = Regs.init();
+                self.regs.a[Regs.sp] = self.rdBus(enc.Size.long, 0);
+                self.regs.pc = self.rdBus(enc.Size.long, 4);
+                self.ir = self.programFetch(enc.Size.word);
+            },
+            .illegal_instr => {
+                self.halted = true;
+            },
+            else => {},
+        }
     }
     
     pub fn programFetch(self: *State, comptime sz: enc.Size) sz.getType(.unsigned) {
@@ -75,8 +99,8 @@ pub fn EffAddr(comptime sz: enc.Size) type {
         // Load data from calculated address
         pub fn load(self: Self, cpu: *State) Data {
             return switch (self) {
-                .data_reg => |reg| @truncate(cpu.regs.gp[reg]),
-                .addr_reg => |reg| @truncate(cpu.regs.gp[8 + reg]),
+                .data_reg => |reg| @truncate(cpu.regs.d[reg]),
+                .addr_reg => |reg| @truncate(cpu.regs.a[reg]),
                 .mem => |addr| cpu.rdBus(sz, addr),
                 .imm => |data| data,
             };
@@ -87,12 +111,12 @@ pub fn EffAddr(comptime sz: enc.Size) type {
             switch (self) {
                 .data_reg => |reg| {
                     const mask: u32 = std.math.maxInt(Data);
-                    cpu.regs.gp[reg] &= ~mask;
-                    cpu.regs.gp[reg] |= data;
+                    cpu.regs.d[reg] &= ~mask;
+                    cpu.regs.d[reg] |= data;
                 },
                 .addr_reg => |reg| {
-                    const extended: i32 = @as(sz.getType(.signed), data);
-                    cpu.regs.gp[8 + reg] = @bitCast(extended);
+                    const extended: i32 = @as(sz.getType(.signed), @bitCast(data));
+                    cpu.regs.a[reg] = @bitCast(extended);
                 },
                 .mem => |addr| cpu.wrBus(sz, addr, data),
                 .imm => unreachable,
@@ -105,29 +129,30 @@ pub fn EffAddr(comptime sz: enc.Size) type {
             switch (mode) {
                 .data_reg => return Self{ .data_reg = xn },
                 .addr_reg => return Self{ .addr_reg = xn },
-                .addr => return Self{ .mem = cpu.regs.gp[8 + xn] },
+                .addr => return Self{ .mem = cpu.regs.a[xn] },
                 .addr_postinc => {
-                    const addr = cpu.regs.gp[8 + xn];
-                    cpu.regs.gp[8 + xn] += @sizeOf(Data);
+                    const addr = cpu.regs.a[xn];
+                    cpu.regs.a[xn] += @sizeOf(Data);
                     return Self{ .mem = addr };
                 },
                 .addr_predec => {
                     cpu.cycles += 2;
-                    cpu.regs.gp[8 + xn] -= @sizeOf(Data);
-                    return Self{ .mem = cpu.regs.gp[8 + xn] };
+                    cpu.regs.a[xn] -= @sizeOf(Data);
+                    return Self{ .mem = cpu.regs.a[xn] };
                 },
                 .addr_disp, .pc_disp => {
-                    const base = if (mode == .pc_disp) cpu.regs.pc else cpu.regs.gp[8 + xn];
+                    const base = if (mode == .pc_disp) cpu.regs.pc else cpu.regs.a[xn];
                     const disp: i16 = @bitCast(cpu.programFetch(enc.Size.word));
                     return Self{ .mem = base +% @as(u32, @bitCast(@as(i32, disp))) };
                 },
                 .addr_idx, .pc_idx => {
                     const ext: enc.BriefExtWord = @bitCast(cpu.programFetch(enc.Size.word));
                     const idx: i32 = calc_idx: {
-                        const reg: u16 = @truncate(cpu.regs.gp[@as(u4, ext.mode) * 8 + ext.reg]);
-                        break :calc_idx @as(i16, @bitCast(reg));
+                        const reg = if (ext.mode == 1) cpu.regs.a[ext.reg] else cpu.regs.d[ext.reg];
+                        const trunc: u16 = @truncate(reg);
+                        break :calc_idx @as(i16, @bitCast(trunc));
                     };
-                    var addr = if (mode == .pc_disp) cpu.regs.pc else cpu.regs.gp[8 + xn];
+                    var addr = if (mode == .pc_disp) cpu.regs.pc else cpu.regs.a[xn];
                     addr +%= @bitCast(@as(i32, ext.disp));
                     addr +%= @bitCast(idx);
                     return Self{ .mem = addr };
@@ -222,10 +247,14 @@ pub const Bus = struct {
 
 /// Cpu registers
 pub const Regs = struct {
-    gp: [16]u32, // General purpose registers (data first, then address registers)
+    d: [8]u32, // Data registers
+    a: [8]u32, // Address registers
     pc: u32, // Program counter register
     sr: Status, // Status register
 
+    // Stack pointer register
+    pub const sp = 7;
+    
     pub const Status = packed struct {
         c: bool = false, // Carry
         v: bool = false, // Overflow
@@ -242,9 +271,30 @@ pub const Regs = struct {
     
     pub fn init() Regs {
         return .{
-            .gp = [_]u32{0} ** 16,
+            .d = [1]u32{0} ** 8,
+            .a = [1]u32{0} ** 8,
             .pc = 0,
             .sr = Status{},
         };
     }
+};
+
+// Interrupt vector table enum
+pub const Vector = enum(u8) {
+    reset,
+    bus_error = 2,
+    addr_error,
+    illegal_instr,
+    zero_divide,
+    chk_instr,
+    trapv_instr,
+    privilege_violation,
+    trace,
+    line_1010_emu,
+    line_1111_emu,
+    uninitialized_interrupt = 15,
+    spurious_interrupt = 24,
+    interrupt_autovectors,
+    trap_vectors,
+    user_interrupts = 40,
 };
