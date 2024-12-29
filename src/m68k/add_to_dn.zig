@@ -23,7 +23,6 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     // Compute effective addresses
     const instr: Encoding = @bitCast(state.ir);
     const src_ea = cpu.EffAddr(sz).calc(state, instr.src.m, instr.src.xn);
-    const dst_ea = cpu.EffAddr(sz).calc(state, enc.AddrMode.data_reg.toModeBits()[0], instr.dst);
     
     // Don't run if size if byte and we are using address register direct mode
     if (sz == .byte) {
@@ -37,9 +36,9 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     }
     
     // Set flags and store result
-    const res = cpu.AddFlags(sz).add(src_ea.load(state), dst_ea.load(state));
+    const res = cpu.AddFlags(sz).add(src_ea.load(state), state.loadReg(.data, sz, instr.dst));
     state.setArithFlags(sz, res);
-    dst_ea.store(state, res.val);
+    state.storeReg(.data, sz, instr.dst, res.val);
 
     // Add processing time and fetch next instruction
     state.cycles += switch (sz) {

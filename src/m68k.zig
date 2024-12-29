@@ -27,7 +27,10 @@ const Instr = struct {
     
     // Run an instruction
     inline fn run(comptime self: Instr, state: *cpu.State) void {
-        if (self.instr == void) return;
+        if (self.instr == void) {
+            state.pending_exception = @intFromEnum(cpu.Vector.illegal_instr);
+            return;
+        }
         if (self.size) |size| {
             self.instr.runWithSize(state, size);
         } else {
@@ -75,7 +78,7 @@ const decode_lut: [0x10000]u8 = compute_lut: {
             if (!enc.matchChildren(instr.Encoding, word)) continue;
             if (withSize) {
                 const encoding: instr.Encoding = @bitCast(word);
-                lut[i] = decode_byte_base + @intFromEnum(encoding.size);
+                lut[i] = decode_byte_base + @as(comptime_int, @intFromEnum(encoding.size));
             } else {
                 lut[i] = decode_byte_base;
             }
@@ -103,7 +106,9 @@ test "Instructions" {
         // Reset and validate instruction
         reset(&state);
         state.cycles = 0;
-        while (state.regs.pc <= 8 + instr.Tester.code.len * 2) runInstr(&state);
+        while (state.regs.pc <= 8 + instr.Tester.code.len * 2 and !state.halted) {
+            runInstr(&state);
+        }
         try std.testing.expect(instr.Tester.validate(&state));
     }
 }
@@ -112,4 +117,6 @@ test "Instructions" {
 const instrs = .{
     @import("m68k/abcd.zig"),
     @import("m68k/add_to_dn.zig"),
+    @import("m68k/add_to_ea.zig"),
+    @import("m68k/adda.zig"),
 };

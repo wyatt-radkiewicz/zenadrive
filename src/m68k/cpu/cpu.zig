@@ -42,6 +42,30 @@ pub const State = struct {
         }
     }
     
+    // Load a register while truncating result to desired size
+    pub inline fn loadReg(self: *State, comptime ty: Regs.GpType, comptime sz: enc.Size, reg: u3) sz.getType(.unsigned) {
+        const reg_data = switch (ty) {
+            .data => self.regs.d[reg],
+            .addr => self.regs.a[reg],
+        };
+        return @truncate(reg_data);
+    }
+    
+    // Overwrites register
+    pub inline fn storeReg(self: *State, comptime ty: Regs.GpType, comptime sz: enc.Size, reg: u3, data: sz.getType(.unsigned)) void {
+        const mask: u32 = std.math.maxInt(sz.getType(.unsigned));
+        switch (ty) {
+            .data => {
+                self.regs.d[reg] &= ~mask;
+                self.regs.d[reg] |= data;
+            },
+            .addr => {
+                self.regs.a[reg] &= ~mask;
+                self.regs.a[reg] |= data;
+            },
+        }
+    }
+    
     // Set flags for normal arithmatic operations
     pub fn setArithFlags(self: *State, comptime sz: enc.Size, add: AddFlags(sz)) void {
         self.regs.sr.c = add.carry;
@@ -92,6 +116,12 @@ pub const State = struct {
         }
     }
 };
+
+// Sign extends a type to full u32
+pub fn extendFull(comptime sz: enc.Size, data: sz.getType(.unsigned)) u32 {
+    const extended: i32 = @as(sz.getType(.signed), @bitCast(data));
+    return @bitCast(extended);
+}
 
 /// Helper functions for overflow/carry etc
 pub fn AddFlags(comptime sz: enc.Size) type {
@@ -154,8 +184,8 @@ pub fn EffAddr(comptime sz: enc.Size) type {
         // Load data from calculated address
         pub fn load(self: Self, cpu: *State) Data {
             return switch (self) {
-                .data_reg => |reg| @truncate(cpu.regs.d[reg]),
-                .addr_reg => |reg| @truncate(cpu.regs.a[reg]),
+                .data_reg => |reg| cpu.loadReg(.data, sz, reg),
+                .addr_reg => |reg| cpu.loadReg(.addr, sz, reg),
                 .mem => |addr| cpu.rdBus(sz, addr),
                 .imm => |data| data,
             };
@@ -164,15 +194,8 @@ pub fn EffAddr(comptime sz: enc.Size) type {
         // Store data to calculated address
         pub fn store(self: Self, cpu: *State, data: Data) void {
             switch (self) {
-                .data_reg => |reg| {
-                    const mask: u32 = std.math.maxInt(Data);
-                    cpu.regs.d[reg] &= ~mask;
-                    cpu.regs.d[reg] |= data;
-                },
-                .addr_reg => |reg| {
-                    const extended: i32 = @as(sz.getType(.signed), @bitCast(data));
-                    cpu.regs.a[reg] = @bitCast(extended);
-                },
+                .data_reg => |reg| cpu.storeReg(.data, sz, reg, data),
+                .addr_reg => |reg| cpu.storeReg(.addr, sz, reg, data),
                 .mem => |addr| cpu.wrBus(sz, addr, data),
                 .imm => unreachable,
             }
@@ -310,6 +333,7 @@ pub const Regs = struct {
     // Stack pointer register
     pub const sp = 7;
 
+    // Status register representation. Reset state is defaults for struct.
     pub const Status = packed struct {
         c: bool = false, // Carry
         v: bool = false, // Overflow
@@ -322,6 +346,20 @@ pub const Regs = struct {
         s: bool = true, // Supervisor level
         reserved_trace: u1 = 0,
         t: bool = false, // Trace mode enable
+    };
+    
+    // General Purpose register kind
+    pub const GpType = enum {
+        data,
+        addr,
+        
+        pub fn fromAddrMode(md: enc.AddrMode) ?GpType {
+            return switch (md) {
+                .data_reg => GpType.data,
+                .addr_reg => GpType.addr,
+                else => null,
+            };
+        }
     };
 
     pub fn init() Regs {
