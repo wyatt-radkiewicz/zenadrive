@@ -6,13 +6,13 @@ pub const Encoding = packed struct {
     size: enc.Size,
     dir: enc.MatchBits(1, 1),
     src: u3,
-    line: enc.MatchBits(4, 0b1101),
+    line: enc.MatchBits(4, 0b1100),
 };
 
 pub const Tester = struct {
-    //    0:	d150           	add.w d0,(a0) ; 12 cycles
-    //    2:	d590           	add.l d2,(a0) ; 20 cycles
-    pub const code = [_]u16{ 0xD150, 0xD590 };
+    //    0:	c150           	and.w d0,(a0) ; 12 cycles
+    //    2:	c590           	and.l d2,(a0) ; 20 cycles
+    pub const code = [_]u16{ 0xC150, 0xC590 };
     pub fn validate(state: *const cpu.State) bool {
         if (state.cycles != 32) return false;
         return true;
@@ -25,9 +25,9 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     const dst_ea = cpu.EffAddr(sz).calc(state, instr.dst.m, instr.dst.xn);
 
     // Set flags and store result
-    const res = cpu.AddFlags(sz).add(state.loadReg(.data, sz, instr.src), dst_ea.load(state));
-    state.setArithFlags(sz, res);
-    dst_ea.store(state, res.val);
+    const res = dst_ea.load(state) & state.loadReg(.data, sz, instr.src);
+    state.setLogicalFlags(sz, res);
+    dst_ea.store(state, res);
 
     // Fetch next instruction
     state.ir = state.programFetch(enc.Size.word);

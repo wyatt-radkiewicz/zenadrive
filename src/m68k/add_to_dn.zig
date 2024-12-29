@@ -41,12 +41,11 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     state.storeReg(.data, sz, instr.dst, res.val);
 
     // Add processing time and fetch next instruction
-    state.cycles += switch (sz) {
-        .byte, .word => 0,
-        .long => switch (src_ea) {
-            .data_reg, .addr_reg => 4,
-            else => 2,
-        },
-    };
+    if (sz == .long) {
+        state.cycles += switch (src_ea) {
+            .mem => 2,
+            else => 4,
+        };
+    }
     state.ir = state.programFetch(enc.Size.word);
 }

@@ -74,6 +74,14 @@ pub const State = struct {
         self.regs.sr.z = @as(sz.getType(.signed), @bitCast(add.val)) < 0;
         self.regs.sr.x = add.carry;
     }
+    
+    // Set logical bit operation flags
+    pub fn setLogicalFlags(self: *State, comptime sz: enc.Size, val: sz.getType(.unsigned)) void {
+        self.regs.sr.c = false;
+        self.regs.sr.v = false;
+        self.regs.sr.z = val == 0;
+        self.regs.sr.n = checkMsb(val);
+    }
 
     pub fn programFetch(self: *State, comptime sz: enc.Size) sz.getType(.unsigned) {
         switch (sz) {
@@ -121,6 +129,13 @@ pub const State = struct {
 pub fn extendFull(comptime sz: enc.Size, data: sz.getType(.unsigned)) u32 {
     const extended: i32 = @as(sz.getType(.signed), @bitCast(data));
     return @bitCast(extended);
+}
+
+// Gets most significant bit
+pub fn checkMsb(int: anytype) bool {
+    const Type = @TypeOf(int);
+    const info = @typeInfo(Type).Int;
+    return (int >> (info.bits - 1)) != 0;
 }
 
 /// Helper functions for overflow/carry etc

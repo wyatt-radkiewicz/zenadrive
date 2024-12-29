@@ -115,11 +115,13 @@ test "Instructions" {
 
 // List of cpu instructions (as types of structs)
 const instrs = .{
-    @import("m68k/abcd.zig"),
-    @import("m68k/add_to_dn.zig"),
-    @import("m68k/add_to_ea.zig"),
-    @import("m68k/adda.zig"),
-    @import("m68k/addi.zig"),
-    @import("m68k/addq.zig"),
-    @import("m68k/addx.zig"),
+    //@import("m68k/abcd.zig"),
+    //@import("m68k/add_to_dn.zig"),
+    //@import("m68k/add_to_ea.zig"),
+    //@import("m68k/adda.zig"),
+    //@import("m68k/addi.zig"),
+    //@import("m68k/addq.zig"),
+    //@import("m68k/addx.zig"),
+    @import("m68k/and_to_dn.zig"),
+    @import("m68k/and_to_ea.zig"),
 };
