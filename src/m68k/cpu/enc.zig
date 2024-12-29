@@ -130,7 +130,11 @@ pub fn matchChildren(comptime T: type, bits: ToInt(T)) bool {
                 @compileError("unrecognized encoding type");
             },
         }
-        bits_left >>= @bitSizeOf(field.type);
+        if (@bitSizeOf(field.type) == @bitSizeOf(T)) {
+            return true;
+        } else {
+            bits_left >>= @bitSizeOf(field.type);
+        }
     }
     return true;
 }

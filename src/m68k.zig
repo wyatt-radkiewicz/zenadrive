@@ -125,4 +125,5 @@ const instrs = .{
     @import("m68k/and_to_dn.zig"),
     @import("m68k/and_to_ea.zig"),
     @import("m68k/andi.zig"),
+    @import("m68k/andi_to_ccr.zig"),
 };
