@@ -32,6 +32,14 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     state.setArithFlags(sz, res);
     dst.store(state, res.val);
 
+    // Add processing time
+    if (sz == .long) {
+        switch (dst) {
+            .data_reg => state.cycles += 4,
+            else => {},
+        }
+    }
+    
     // Fetch next instruction
     state.ir = state.programFetch(enc.Size.word);
 }
