@@ -26,7 +26,7 @@ const Instr = struct {
     size: ?enc.Size,
     
     // Run an instruction
-    fn run(comptime self: Instr, state: *cpu.State) void {
+    inline fn run(comptime self: Instr, state: *cpu.State) void {
         if (self.instr == void) return;
         if (self.size) |size| {
             self.instr.runWithSize(state, size);
