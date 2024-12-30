@@ -200,7 +200,9 @@ const instrs = .{
     //@import("m68k/jsr.zig"),
     //@import("m68k/lea.zig"),
     //@import("m68k/link.zig"),
+    //@import("m68k/move.zig"),
+    //@import("m68k/movea.zig"),
     //@import("m68k/opi.zig"),
-    @import("m68k/shift_reg.zig"),
-    @import("m68k/shift_mem.zig"),
+    //@import("m68k/shift_reg.zig"),
+    //@import("m68k/shift_mem.zig"),
 };

@@ -7,10 +7,7 @@ pub const Size = enum(u2) {
     long,
 
     pub fn match(bits: u2) bool {
-        return switch (bits) {
-            0b11 => false,
-            else => true,
-        };
+        return bits != 0b11;
     }
     
     pub fn fromBit(bit: u1) Size {
@@ -29,6 +26,22 @@ pub const Size = enum(u2) {
         return switch (self) {
             .byte => .word,
             .word, .long => .long,
+        };
+    }
+};
+
+pub const MoveSize = enum(u2) {
+    byte = 1,
+    long,
+    word,
+    
+    pub fn match(bits: u2) bool {
+        return bits != 0b00;
+    }
+    
+    pub fn toSize(self: MoveSize) Size {
+        return switch (self) {
+            inline else => |size| std.meta.stringToEnum(Size, @tagName(size)).?,
         };
     }
 };
