@@ -198,6 +198,7 @@ const instrs = .{
     //@import("m68k/eor.zig"),
     //@import("m68k/exg.zig"),
     //@import("m68k/ext.zig"),
-    //@import("m68k/jmp.zig"),
+    @import("m68k/jmp.zig"),
+    @import("m68k/jsr.zig"),
     //@import("m68k/opi.zig"),
 };
