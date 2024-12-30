@@ -193,6 +193,6 @@ const instrs = .{
     //@import("m68k/asd_reg.zig"),
     //@import("m68k/asd_mem.zig"),
     //@import("m68k/b_cc.zig"),
-    @import("m68k/b_xxx_reg.zig"),
-    @import("m68k/b_xxx_imm.zig"),
+    //@import("m68k/b_xxx_reg.zig"),
+    //@import("m68k/b_xxx_imm.zig"),
 };

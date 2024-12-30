@@ -65,9 +65,22 @@ pub const State = struct {
             },
         }
     }
+    
+    // Push value onto program stack
+    pub fn pushVal(self: *State, comptime sz: enc.Size, data: sz.getType(.unsigned)) void {
+        self.regs.a[Regs.sp] -= @sizeOf(sz.getType(.unsigned));
+        self.wrBus(sz, self.regs.a[Regs.sp], data);
+    }
+    
+    // Pop value from program stack
+    pub fn popVal(self: *State, comptime sz: enc.Size) sz.getType(.unsigned) {
+        const val = self.rdBus(sz, self.regs.a[Regs.sp]);
+        self.regs.a[Regs.sp] += @sizeOf(sz.getType(.unsigned));
+        return val;
+    }
 
     // Set flags for normal arithmatic operations
-    pub inline fn addWithFlags(
+    pub fn addWithFlags(
         self: *State,
         comptime sz: enc.Size,
         lhs: sz.getType(.unsigned),

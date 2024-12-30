@@ -18,7 +18,8 @@ pub const Tester = struct {
 };
 
 pub fn match(comptime encoding: Encoding) bool {
-    return encoding.cond != .@"true" and encoding.cond != .@"false";
+    _ = encoding;
+    return true;
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
@@ -38,6 +39,11 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
             if (state.regs.sr.satisfiesCond(instr.cond)) {
                 state.cycles += 2;
                 state.regs.pc = base +% disp;
+            } else if (instr.cond == .@"false") {
+                // Do branch to subroutine
+                state.cycles += 2;
+                state.pushVal(enc.Size.long, state.regs.pc);
+                state.regs.pc = base +% disp;
             } else {
                 state.cycles += 4;
             }
@@ -50,9 +56,15 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
             state.ir = state.programFetch(enc.Size.word);
             
             // Check if the branch succeeded
+            const disp: u32 = @bitCast(@as(i32, instr.disp));
             if (state.regs.sr.satisfiesCond(instr.cond)) {
-                const disp: u32 = @bitCast(@as(i32, instr.disp));
                 state.cycles += 2;
+                state.regs.pc = base +% disp;
+                state.ir = state.programFetch(enc.Size.word);
+            } else if (instr.cond == .@"false") {
+                // Do branch to subroutine
+                state.cycles += 2;
+                state.pushVal(enc.Size.long, state.regs.pc);
                 state.regs.pc = base +% disp;
                 state.ir = state.programFetch(enc.Size.word);
             } else {
