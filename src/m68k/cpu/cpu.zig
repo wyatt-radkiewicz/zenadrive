@@ -139,13 +139,18 @@ pub const State = struct {
 
     // Shift integer and set flags
     // Does variable cycle calculation (aka 2m)
-    pub fn arithShiftWithFlags(
+    pub fn shiftWithFlags(
         self: *State,
         comptime sz: enc.Size,
+        comptime mode: enc.ShiftOp,
         dir: enc.ShiftDir,
         data: sz.getType(.unsigned),
-        shift: u6,
+        shift: u6
     ) sz.getType(.unsigned) {
+        switch (mode) {
+            .shift_arith, .shift_logic => {},
+            else => @compileError("Can only use shift mode in shiftWithFlags"),
+        }
         const S = sz.getType(.signed);
         var x = data;
         self.regs.sr.c = false;
@@ -159,21 +164,70 @@ pub const State = struct {
                     const new_msb = checkMsb(x);
                     self.regs.sr.c = old_msb;
                     self.regs.sr.x = old_msb;
-                    self.regs.sr.v = self.regs.sr.v or (old_msb != new_msb);
+                    if (mode == .shift_arith) {
+                        self.regs.sr.v = self.regs.sr.v or (old_msb != new_msb);
+                    }
                 }
             },
             .right => {
                 for (0..shift) |_| {
                     const old_lsb = (x & 1) != 0;
                     self.cycles += 2;
-                    x = @bitCast(@as(S, @bitCast(x)) >> 1);
+                    if (mode == .shift_arith) {
+                        x = @bitCast(@as(S, @bitCast(x)) >> 1);
+                    } else {
+                        x >>= 1;
+                    }
                     self.regs.sr.c = old_lsb;
                     self.regs.sr.x = old_lsb;
                 }
             },
         }
-        self.regs.sr.z = x == 0;
-        self.regs.sr.n = checkMsb(x);
+        self.setNegAndZeroFlags(sz, x);
+        return x;
+    }
+    
+    // Rotate integer and set flags
+    // Does variable cycle calculation (aka 2m)
+    pub fn rotateWithFlags(
+        self: *State,
+        comptime sz: enc.Size,
+        comptime mode: enc.ShiftOp,
+        dir: enc.ShiftDir,
+        data: sz.getType(.unsigned),
+        shift: u6
+    ) sz.getType(.unsigned) {
+        switch (mode) {
+            .rotate, .rotate_extended => {},
+            else => @compileError("Can only use rotate modes in rotateWithFlags"),
+        }
+        var x = data;
+        self.regs.sr.c = false;
+        self.regs.sr.v = false;
+        switch (dir) {
+            .left => {
+                for (0..shift) |_| {
+                    const msb = checkMsb(x);
+                    self.regs.sr.c = msb;
+                    if (mode == .rotate_extended) self.regs.sr.x = msb;
+                    self.cycles += 2;
+                    x <<= 1;
+                    x |= @intFromBool(msb);
+                }
+            },
+            .right => {
+                for (0..shift) |_| {
+                    const lsb = x & 1 != 0;
+                    self.regs.sr.c = lsb;
+                    if (mode == .rotate_extended) self.regs.sr.x = lsb;
+                    self.cycles += 2;
+                    x >>= 1;
+                    if (lsb) x |= 1 << @bitSizeOf(@TypeOf(x)) - 1;
+                }
+            },
+        }
+        if (mode == .rotate_extended and shift == 0) self.regs.sr.c = self.regs.sr.x;
+        self.setNegAndZeroFlags(sz, x);
         return x;
     }
 

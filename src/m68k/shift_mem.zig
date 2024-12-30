@@ -6,9 +6,12 @@ pub const Encoding = packed struct {
     dst: enc.EffAddr,
     pattern1: enc.BitPattern(2, 0b11),
     dir: enc.ShiftDir,
-    pattern2: enc.BitPattern(7, 0b1110_000),
+    op: enc.ShiftOp,
+    pattern2: enc.BitPattern(5, 0b1110_0),
 };
-pub const Variant = packed struct {};
+pub const Variant = packed struct {
+    op: enc.ShiftOp,
+};
 pub const Tester = struct {
     const expect = std.testing.expect;
     
@@ -31,19 +34,17 @@ pub fn match(comptime encoding: Encoding) bool {
     return false;
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
-    _ = args;
     // Get encoding
     const instr: Encoding = @bitCast(state.ir);
     const dst_ea = cpu.EffAddr(enc.Size.word).calc(state, instr.dst);
 
     // Do operation
+    const reg = dst_ea.load(state);
     dst_ea.store(state, switch (instr.dir) {
-        inline else => |dir| state.arithShiftWithFlags(
-            enc.Size.word,
-            dir,
-            dst_ea.load(state),
-            1,
-        ),
+        inline else => |dir| switch (args.op) {
+            .shift_arith, .shift_logic => state.shiftWithFlags(enc.Size.word, args.op, dir, reg, 1),
+            .rotate, .rotate_extended => state.rotateWithFlags(enc.Size.word, args.op, dir, reg, 1),
+        },
     });
 
     // Micro-code for asD <ea> is sligtly different and doesn't cost any shift cycles

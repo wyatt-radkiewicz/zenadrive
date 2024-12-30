@@ -101,6 +101,14 @@ pub const OpDir = enum(u1) {
     ea_dn_store_ea,
 };
 
+// Shift operations
+pub const ShiftOp = enum(u2) {
+    shift_arith,
+    shift_logic,
+    rotate_extended,
+    rotate,
+};
+
 // Bit operations
 pub const BitOp = enum(u2) {
     btst,

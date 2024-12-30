@@ -181,8 +181,6 @@ const instrs = .{
     //@import("m68k/addq.zig"),
     //@import("m68k/addx.zig"),
     //@import("m68k/and.zig"),
-    //@import("m68k/asd_reg.zig"),
-    //@import("m68k/asd_mem.zig"),
     //@import("m68k/b_cc.zig"),
     //@import("m68k/b_xxx_reg.zig"),
     //@import("m68k/b_xxx_imm.zig"),
@@ -201,6 +199,8 @@ const instrs = .{
     //@import("m68k/jmp.zig"),
     //@import("m68k/jsr.zig"),
     //@import("m68k/lea.zig"),
-    @import("m68k/link.zig"),
+    //@import("m68k/link.zig"),
     //@import("m68k/opi.zig"),
+    @import("m68k/shift_reg.zig"),
+    @import("m68k/shift_mem.zig"),
 };
