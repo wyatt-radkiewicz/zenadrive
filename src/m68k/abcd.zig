@@ -8,6 +8,7 @@ pub const Encoding = packed struct {
     dst: u3,
     line: enc.MatchBits(4, 0b1100),
 };
+pub const ComptimeArgs = struct {};
 
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
@@ -19,9 +20,10 @@ pub const Tester = struct {
     }
 };
 
-pub fn run(state: *cpu.State) void {
+pub fn run(state: *cpu.State, comptime args: ComptimeArgs) void {
     // Get instruction encoding
     const instr: Encoding = @bitCast(state.ir);
+    _ = args;
 
     // Get addressing mode
     const mode = enc.AddrMode.toModeBits(if (instr.rm)

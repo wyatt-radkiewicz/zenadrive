@@ -8,6 +8,9 @@ pub const Encoding = packed struct {
     src: u3,
     line: enc.MatchBits(4, 0b1101),
 };
+pub const ComptimeArgs = struct {
+    size: enc.Size,
+};
 
 pub const Tester = struct {
     const expect = @import("std").testing.expect;

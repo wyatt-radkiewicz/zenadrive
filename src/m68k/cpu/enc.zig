@@ -89,6 +89,19 @@ pub const ShiftDir = enum (u1) {
     }
 };
 
+// Bit operations
+pub const BitOp = enum(u2) {
+    btst,
+    bchg,
+    bclr,
+    bset,
+    
+    pub fn match(bits: u2) bool {
+        _ = bits;
+        return true;
+    }
+};
+
 // Conditions
 pub const Cond = enum(u4) {
     @"true",

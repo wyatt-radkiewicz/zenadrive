@@ -8,6 +8,9 @@ pub const Encoding = packed struct {
     dst: u3,
     line: enc.MatchBits(4, 0b1101),
 };
+pub const ComptimeArgs = struct {
+    size: enc.Size,
+};
 
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
@@ -20,13 +23,13 @@ pub const Tester = struct {
     }
 };
 
-pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
+pub fn run(state: *cpu.State, comptime args: ComptimeArgs) void {
     // Compute effective addresses
     const instr: Encoding = @bitCast(state.ir);
-    const src_ea = cpu.EffAddr(sz).calc(state, instr.src.m, instr.src.xn);
+    const src_ea = cpu.EffAddr(args.size).calc(state, instr.src.m, instr.src.xn);
     
     // Don't run if size if byte and we are using address register direct mode
-    if (sz == .byte) {
+    if (args.size == .byte) {
         switch (src_ea) {
             .addr_reg => {
                 state.pending_exception = @intFromEnum(cpu.Vector.illegal_instr);
@@ -37,11 +40,12 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     }
     
     // Set flags and store result
-    const res = state.addWithFlags(sz, src_ea.load(state), state.loadReg(.data, sz, instr.dst));
-    state.storeReg(.data, sz, instr.dst, res);
+    const dst = state.loadReg(.data, args.size, instr.dst);
+    const res = state.addWithFlags(args.size, src_ea.load(state), dst);
+    state.storeReg(.data, args.size, instr.dst, res);
 
     // Add processing time and fetch next instruction
-    if (sz == .long) {
+    if (args.size == .long) {
         state.cycles += switch (src_ea) {
             .mem => 2,
             else => 4,
