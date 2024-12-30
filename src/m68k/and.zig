@@ -15,7 +15,7 @@ pub const Variant = packed struct {
 };
 
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
 
     // 1100_001_0_01_000_000
     // 0:	c240           	and.w d0,d1      ; 4 cycles

@@ -1,3 +1,4 @@
+const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
@@ -13,7 +14,7 @@ pub const Variant = packed struct {
     size: enc.Size,
 };
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
 
     //    0:	b348           	cmpmw %a0@+,%a1@+
     pub const code = [_]u16{ 0xB348 };

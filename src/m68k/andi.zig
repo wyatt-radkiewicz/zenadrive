@@ -11,7 +11,7 @@ pub const Variant = packed struct {
     size: enc.Size,
 };
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
     
     // 0:	0241 f0f0      	andi.w #-3856,d1         ; 8 cycles
     // 4:	0280 f0f0 f0f0 	andi.l #-252645136,d0    ; 16 cycles

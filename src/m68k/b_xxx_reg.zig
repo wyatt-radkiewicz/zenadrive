@@ -13,7 +13,7 @@ pub const Variant = packed struct {
     op: enc.BitOp,
 };
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
 
     // 0:	0141           	bchg d0,d1     ; 6 cycles
     // 2:	0178 0020      	bchg d0,$20    ; 16 cycles

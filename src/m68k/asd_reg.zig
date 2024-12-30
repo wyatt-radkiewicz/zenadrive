@@ -1,3 +1,4 @@
+const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
@@ -14,7 +15,7 @@ pub const Variant = packed struct {
     size: enc.Size,
 };
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
     
     // 0:	e900           	asl.b #4,d0   ; 14 cycles
     // 2:	e420           	asr.b d2,d0   ; 6+2(m = 0) cycles

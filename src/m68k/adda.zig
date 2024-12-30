@@ -1,3 +1,4 @@
+const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
@@ -10,7 +11,7 @@ pub const Encoding = packed struct {
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
     
     // 0:	d0c0           	adda.w d0,a0      ; 8 cycles
     // 2:	d1d0           	adda.l (a0),a0    ; 14 cycles

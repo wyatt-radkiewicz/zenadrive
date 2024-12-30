@@ -13,7 +13,7 @@ pub const Variant = packed struct {
     size: enc.Size,
 };
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
     
     // 0:	41bc fffc      	chkw #-4,d0   ; 40 ish cycles ? (should take the trap)
     pub const code = [_]u16{ 0x41BC, 0xFFFC };
@@ -42,8 +42,7 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
         }
         state.regs.sr.n = false;
         state.cycles += 16;
-        state.pending_exception = @intFromEnum(cpu.Vector.chk_instr);
-        state.handleException();
+        state.handleException(@intFromEnum(cpu.Vector.chk_instr));
     } else {
         // Don't trap
         state.cycles += 6;

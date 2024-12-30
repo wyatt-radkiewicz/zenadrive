@@ -11,7 +11,7 @@ pub const Variant = packed struct {
     size: enc.Size,
 };
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
 
     //    0:	0c40 0032      	cmpiw #50,%d0
     pub const code = [_]u16{ 0x0C40, 0x0032 };

@@ -22,9 +22,15 @@ pub const State = struct {
         };
     }
 
-    pub fn handleException(self: *State) void {
+    // Tries to handle pending exceptions if there are any
+    pub fn tryPendingException(self: *State) void {
         const exception = self.pending_exception orelse return;
         self.pending_exception = null;
+        self.handleException(exception);
+    }
+    
+    // Starts exception handler code for the exception
+    pub fn handleException(self: *State, exception: u8) void {
         const sr_copy = self.regs.sr;
         self.regs.sr.s = true;
         self.regs.sr.t = false;
@@ -41,10 +47,10 @@ pub const State = struct {
             .illegal_instr => {
                 self.halted = true;
             },
-            .chk_instr => {
+            .chk_instr, .zero_divide => |vec| {
                 self.pushVal(enc.Size.long, self.regs.pc -% 2);
                 self.pushVal(enc.Size.word, @bitCast(sr_copy));
-                self.regs.pc = self.rdBus(enc.Size.long, Vector.chk_instr.getAddr());
+                self.regs.pc = self.rdBus(enc.Size.long, vec.getAddr());
                 self.ir = self.programFetch(enc.Size.word);
             },
             else => {},

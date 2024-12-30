@@ -1,3 +1,4 @@
+const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
@@ -8,7 +9,7 @@ pub const Encoding = packed struct {
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
     
     // 0:	6700 0002      	beqw 4 <end> ; 12 cycles (not taken)
     pub const code = [_]u16{ 0x6700, 0x0002 };

@@ -11,7 +11,7 @@ pub const Variant = packed struct {
     size: enc.Size,
 };
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
 
     // 0:	4240           	clrw %d0 ; 4 cycles
     pub const code = [_]u16{ 0x4240 };

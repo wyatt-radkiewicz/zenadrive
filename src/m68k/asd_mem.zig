@@ -10,7 +10,7 @@ pub const Encoding = packed struct {
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
     
     // 0:	e1d0           	asl.w (a0) ; 12 cycles
     // 2:	e0d0           	asr.w (a0) ; 12 cycles

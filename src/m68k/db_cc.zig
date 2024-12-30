@@ -10,7 +10,7 @@ pub const Encoding = packed struct {
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
-    const expect = @import("std").testing.expect;
+    const expect = std.testing.expect;
     
     //    0:	56c8 0002      	dbne %d0,4 <end> ; (not taken)
     pub const code = [_]u16{ 0x56C8, 0x0002 };

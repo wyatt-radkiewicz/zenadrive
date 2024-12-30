@@ -4,12 +4,6 @@ const cpu_testing = @import("m68k/cpu/testing.zig");
 
 pub const cpu = @import("m68k/cpu/cpu.zig");
 
-// Goes through reset procedure
-pub fn reset(state: *cpu.State) void {
-    state.pending_exception = @intFromEnum(cpu.Vector.reset);
-    state.handleException();
-}
-
 // Run one instruction (and potentially handle exceptions (but not run their code))
 pub fn runInstr(state: *cpu.State) void {
     if (state.halted) return;
@@ -39,7 +33,7 @@ pub fn runInstr(state: *cpu.State) void {
     };
 
     // Handle exceptions generated since last instruction
-    state.handleException();
+    state.tryPendingException();
 
     // Get lut byte from instruction word and jump to instruction function (with comptime variant)
     switch (decode_lut[state.ir]) {
@@ -170,7 +164,7 @@ test "Instructions" {
         }
 
         // Reset and validate instruction
-        reset(&state);
+        state.handleException(@intFromEnum(cpu.Vector.reset));
         state.cycles = 0;
         while (state.regs.pc <= addr and !state.halted) {
             runInstr(&state);
@@ -202,4 +196,5 @@ const instrs = .{
     //@import("m68k/cmpi.zig"),
     //@import("m68k/cmpm.zig"),
     //@import("m68k/db_cc.zig"),
+    //@import("m68k/div.zig"),
 };
