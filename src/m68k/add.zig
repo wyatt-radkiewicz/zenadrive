@@ -48,6 +48,7 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     if (args.dir == .dn_ea_store_dn) {
         const dst = state.loadReg(.data, args.size, instr.dn);
         const res = state.addWithFlags(args.size, ea.load(state), dst);
+        state.regs.sr.x = state.regs.sr.c;
         state.storeReg(.data, args.size, instr.dn, res);
         
         // Add processing time

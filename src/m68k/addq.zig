@@ -41,6 +41,7 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Set flags and store result
     const sr_backup = state.regs.sr;
     const res = state.addWithFlags(args.size, imm, dst.load(state));
+    state.regs.sr.x = state.regs.sr.c;
     
     // Only update flags if we are not adding to an address register
     switch (dst) {

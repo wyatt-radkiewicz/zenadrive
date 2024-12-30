@@ -87,6 +87,11 @@ pub const State = struct {
         self.regs.a[Regs.sp] += @sizeOf(sz.getType(.unsigned));
         return val;
     }
+    
+    pub fn setNegAndZeroFlags(self: *State, comptime sz: enc.Size, val: sz.getType(.unsigned)) void {
+        self.regs.sr.z = val == 0;
+        self.regs.sr.n = @as(sz.getType(.signed), @bitCast(val)) < 0;
+    }
 
     // Set flags for normal arithmatic operations
     pub fn addWithFlags(
@@ -99,9 +104,22 @@ pub const State = struct {
         const res = lhs +% rhs;
         self.regs.sr.c = @addWithOverflow(lhs, rhs)[1] != 0;
         self.regs.sr.v = @addWithOverflow(@as(S, @bitCast(lhs)), @as(S, @bitCast(rhs)))[1] != 0;
-        self.regs.sr.z = res == 0;
-        self.regs.sr.z = @as(sz.getType(.signed), @bitCast(res)) < 0;
-        self.regs.sr.x = self.regs.sr.c;
+        self.setNegAndZeroFlags(sz, res);
+        return res;
+    }
+    
+    // Set flags for normal arithmatic operations
+    pub fn subWithFlags(
+        self: *State,
+        comptime sz: enc.Size,
+        lhs: sz.getType(.unsigned),
+        rhs: sz.getType(.unsigned),
+    ) sz.getType(.unsigned) {
+        const S = sz.getType(.signed);
+        const res = lhs -% rhs;
+        self.regs.sr.c = @subWithOverflow(lhs, rhs)[1] != 0;
+        self.regs.sr.v = @subWithOverflow(@as(S, @bitCast(lhs)), @as(S, @bitCast(rhs)))[1] != 0;
+        self.setNegAndZeroFlags(sz, res);
         return res;
     }
 
