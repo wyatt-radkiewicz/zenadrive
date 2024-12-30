@@ -89,6 +89,41 @@ pub const ShiftDir = enum (u1) {
     }
 };
 
+// Conditions
+pub const Cond = enum(u4) {
+    @"true",
+    @"false",
+    higher,
+    lower_or_same,
+    carry_clear,
+    carry_set,
+    not_equal,
+    equal,
+    overflow_clear,
+    overflow_set,
+    plus,
+    minus,
+    greater_or_equal,
+    less_than,
+    greater_than,
+    less_or_equal,
+};
+
+// Matches condition codes
+pub fn MatchCond(comptime invalid_conds: []const Cond) type {
+    return packed struct {
+        val: Cond,
+
+        pub fn match(bits: u4) bool {
+            const cond: Cond = @enumFromInt(bits);
+            for (invalid_conds) |currcond| {
+                if (cond == currcond) return false;
+            }
+            return true;
+        }
+    };
+}
+
 // Type used in MatchEffAddr
 pub fn MatchEffAddr(comptime invalid_modes: []const AddrMode) type {
     return packed struct {

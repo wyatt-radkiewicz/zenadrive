@@ -14,5 +14,10 @@ pub const Tester = struct {
 };
 
 pub fn run(state: *cpu.State) void {
-    _ = state;
+    // Get encoding
+    const instr: Encoding = @bitCast(state.ir);
+    _ = instr;
+    
+    // Fetch next instruction
+    state.ir = state.programFetch(enc.Size.word);
 }

@@ -389,6 +389,29 @@ pub const Regs = struct {
         s: bool = true, // Supervisor level
         reserved_trace: u1 = 0,
         t: bool = false, // Trace mode enable
+        
+        pub fn satisfiesCond(self: Status, cond: enc.Cond) bool {
+            const n = @intFromBool(self.n);
+            const v = @intFromBool(self.v);
+            return switch (cond) {
+                .@"true" => true,
+                .@"false" => false,
+                .higher => !self.z and !self.c,
+                .lower_or_same => self.z or self.c,
+                .carry_clear => !self.c,
+                .carry_set => self.c,
+                .not_equal => !self.z,
+                .equal => self.z,
+                .overflow_clear => !self.v,
+                .overflow_set => self.v,
+                .plus => !self.n,
+                .minus => self.n,
+                .greater_or_equal => n ^ v == 0,
+                .less_than => n ^ v != 0,
+                .greater_than => !self.z and n ^ v == 0,
+                .less_or_equal => self.z or n ^ v != 0,
+            };
+        }
     };
 
     // General Purpose register kind
