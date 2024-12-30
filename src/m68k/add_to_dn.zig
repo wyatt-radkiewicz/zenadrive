@@ -10,12 +10,13 @@ pub const Encoding = packed struct {
 };
 
 pub const Tester = struct {
+    const expect = @import("std").testing.expect;
+    
     //    0:	d240           	addw %d0,%d1  ; 4 cycles
     //    2:	d682           	addl %d2,%d3  ; 8 cycles
     pub const code = [_]u16{ 0xD240, 0xD682 };
-    pub fn validate(state: *const cpu.State) bool {
-        if (state.cycles != 12) return false;
-        return true;
+    pub fn validate(state: *const cpu.State) !void {
+        try expect(state.cycles == 12);
     }
 };
 

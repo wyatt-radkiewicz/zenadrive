@@ -131,6 +131,33 @@ pub const State = struct {
         return x;
     }
 
+    // Setup a bit operation with flags. Returns addressing mode used
+    pub fn bitOpWithFlags(
+        self: *State,
+        m: u3,
+        xn: u3,
+        bit_idx: u32,
+        op: fn (dst: u32, mask: u32) u32,
+    ) enc.AddrMode {
+        if (m == comptime enc.AddrMode.toModeBits(.data_reg)[0]) {
+            // Long (aka work on data register)
+            const idx: u5 = @truncate(bit_idx);
+            const mask = @as(u32, 1) << idx;
+            const dst = self.regs.d[xn];
+            self.regs.sr.z = dst & mask == 0;
+            self.regs.d[xn] = op(dst, mask);
+            return enc.AddrMode.data_reg;
+        } else {
+            // Byte (aka work on memory)
+            const mask = @as(u8, 1) << @as(u3, @truncate(bit_idx));
+            const dst_ea = EffAddr(enc.Size.byte).calc(self, m, xn);
+            const dst = dst_ea.load(self);
+            self.regs.sr.z = dst & mask == 0;
+            dst_ea.store(self, @truncate(op(dst, mask)));
+            return enc.AddrMode.fromModeBits(m, xn).?;
+        }
+    }
+
     pub fn programFetch(self: *State, comptime sz: enc.Size) sz.getType(.unsigned) {
         switch (sz) {
             .byte, .word => {
@@ -346,22 +373,22 @@ pub const Bus = struct {
     }
 
     // Helper functions so you don't have to pass the context pointer every time
-    fn rd8(self: *const Bus, addr: u24) u8 {
+    inline fn rd8(self: *const Bus, addr: u24) u8 {
         return self.rd8fn(self.ctx, addr);
     }
-    fn rd16(self: *const Bus, addr: u24) u16 {
+    inline fn rd16(self: *const Bus, addr: u24) u16 {
         return self.rd16fn(self.ctx, addr);
     }
-    fn rd32(self: *const Bus, addr: u24) u32 {
+    inline fn rd32(self: *const Bus, addr: u24) u32 {
         return self.rd32fn(self.ctx, addr);
     }
-    fn wr8(self: *const Bus, addr: u24, byte: u8) void {
+    inline fn wr8(self: *const Bus, addr: u24, byte: u8) void {
         self.wr8fn(self.ctx, addr, byte);
     }
-    fn wr16(self: *const Bus, addr: u24, word: u16) void {
+    inline fn wr16(self: *const Bus, addr: u24, word: u16) void {
         self.wr16fn(self.ctx, addr, word);
     }
-    fn wr32(self: *const Bus, addr: u24, long: u32) void {
+    inline fn wr32(self: *const Bus, addr: u24, long: u32) void {
         self.wr32fn(self.ctx, addr, long);
     }
 };
@@ -389,13 +416,13 @@ pub const Regs = struct {
         s: bool = true, // Supervisor level
         reserved_trace: u1 = 0,
         t: bool = false, // Trace mode enable
-        
+
         pub fn satisfiesCond(self: Status, cond: enc.Cond) bool {
             const n = @intFromBool(self.n);
             const v = @intFromBool(self.v);
             return switch (cond) {
-                .@"true" => true,
-                .@"false" => false,
+                .true => true,
+                .false => false,
                 .higher => !self.z and !self.c,
                 .lower_or_same => self.z or self.c,
                 .carry_clear => !self.c,

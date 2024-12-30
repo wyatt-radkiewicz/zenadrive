@@ -6,10 +6,10 @@ pub const Encoding = packed struct {
 };
 
 pub const Tester = struct {
+    const expect = @import("std").testing.expect;
     pub const code = [_]u16 { 0x0640, 0x002D };
-    pub fn validate(state: *const cpu.State) bool {
+    pub fn validate(state: *const cpu.State) !void {
         _ = state;
-        return true;
     }
 };
 

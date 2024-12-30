@@ -8,6 +8,8 @@ pub const Encoding = packed struct {
 };
 
 pub const Tester = struct {
+    const expect = @import("std").testing.expect;
+    
     // 0:	0241 f0f0      	andi.w #-3856,d1         ; 8 cycles
     // 4:	0280 f0f0 f0f0 	andi.l #-252645136,d0    ; 16 cycles
     pub const code = [_]u16{
@@ -15,9 +17,8 @@ pub const Tester = struct {
         0x0280, 0xF0F0,
         0xF0F0,
     };
-    pub fn validate(state: *const cpu.State) bool {
-        if (state.cycles != 24) return false;
-        return true;
+    pub fn validate(state: *const cpu.State) !void {
+        try expect(state.cycles == 24);
     }
 };
 

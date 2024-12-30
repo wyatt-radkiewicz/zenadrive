@@ -8,11 +8,12 @@ pub const Encoding = packed struct {
 };
 
 pub const Tester = struct {
+    const expect = @import("std").testing.expect;
+    
     // 0:	6700 0002      	beqw 4 <end> ; 12 cycles (not taken)
     pub const code = [_]u16{ 0x6700, 0x0002 };
-    pub fn validate(state: *const cpu.State) bool {
-        if (state.cycles != 12) return false;
-        return true;
+    pub fn validate(state: *const cpu.State) !void {
+        try expect(state.cycles == 12);
     }
 };
 

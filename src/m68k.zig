@@ -109,7 +109,7 @@ test "Instructions" {
         while (state.regs.pc <= 8 + instr.Tester.code.len * 2 and !state.halted) {
             runInstr(&state);
         }
-        try std.testing.expect(instr.Tester.validate(&state));
+        try instr.Tester.validate(&state);
     }
 }
 
@@ -126,7 +126,9 @@ const instrs = .{
     //@import("m68k/and_to_ea.zig"),
     //@import("m68k/andi.zig"),
     //@import("m68k/andi_to_ccr.zig"),
-    @import("m68k/asd_reg.zig"),
-    @import("m68k/asd_mem.zig"),
-    @import("m68k/b_cc.zig")
+    //@import("m68k/asd_reg.zig"),
+    //@import("m68k/asd_mem.zig"),
+    //@import("m68k/b_cc.zig"),
+    @import("m68k/bchg_reg.zig"),
+    @import("m68k/bchg_imm.zig"),
 };
