@@ -34,7 +34,13 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     
     if (dst < 0 or dst > src) {
         // Do trap
-        if (dst < 0) state.cycles += 4;
+        if (dst < 0) {
+            state.cycles += 4;
+            state.regs.sr.n = true;
+        } else if (dst > src) {
+            state.regs.sr.n = false;
+        }
+        state.regs.sr.n = false;
         state.cycles += 16;
         state.pending_exception = @intFromEnum(cpu.Vector.chk_instr);
         state.handleException();
