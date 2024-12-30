@@ -4,11 +4,14 @@ const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
     dst: enc.EffAddr,
-    pattern: enc.BitPattern(3, 0b101),
+    op: enc.BitOp,
+    pattern: enc.BitPattern(1, 1),
     reg: u3,
     line: enc.BitPattern(4, 0b0000),
 };
-pub const Variant = packed struct {};
+pub const Variant = packed struct {
+    op: enc.BitOp,
+};
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
 
@@ -32,7 +35,6 @@ pub fn match(comptime encoding: Encoding) bool {
     return false;
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
-    _ = args;
     // Get encoding
     const instr: Encoding = @bitCast(state.ir);
 
@@ -40,9 +42,15 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     switch (state.bitOpWithFlags(
         instr.dst,
         bit_idx,
+        args.op != .btst,
         struct {
             fn inner(dst: u32, mask: u32) u32 {
-                return dst ^ mask;
+                return switch (args.op) {
+                    .btst => unreachable,
+                    .bclr => dst & ~mask,
+                    .bset => dst | mask,
+                    .bchg => dst ^ mask,
+                };
             }
         }.inner,
     )) {

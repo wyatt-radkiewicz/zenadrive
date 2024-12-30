@@ -4,9 +4,12 @@ const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
     dst: enc.EffAddr,
-    line: enc.BitPattern(10, 0b0000_1000_01),
+    op: enc.BitOp,
+    line: enc.BitPattern(8, 0b0000_1000),
 };
-pub const Variant = packed struct {};
+pub const Variant = packed struct {
+    op: enc.BitOp,
+};
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
 
@@ -34,7 +37,6 @@ pub fn match(comptime encoding: Encoding) bool {
     return false;
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
-    _ = args;
     // Get encoding
     const instr: Encoding = @bitCast(state.ir);
 
@@ -42,14 +44,26 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     switch (state.bitOpWithFlags(
         instr.dst,
         bit_idx,
+        args.op != .btst,
         struct {
             fn inner(dst: u32, mask: u32) u32 {
-                return dst ^ mask;
+                return switch (args.op) {
+                    .btst => unreachable,
+                    .bclr => dst & ~mask,
+                    .bset => dst | mask,
+                    .bchg => dst ^ mask,
+                };
             }
         }.inner,
     )) {
         // Add cycles
-        .data_reg => state.cycles += if (bit_idx < 16) 2 else 4,
+        .data_reg => {
+            state.cycles += switch (args.op) {
+                .btst => 2,
+                .bclr => if (bit_idx < 16) 4 else 6,
+                else => if (bit_idx < 16) 2 else 4,
+            };
+        },
         else => {},
     }
 

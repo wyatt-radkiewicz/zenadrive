@@ -136,6 +136,7 @@ pub const State = struct {
         self: *State,
         ea: enc.EffAddr,
         bit_idx: u32,
+        comptime write_back: bool,
         op: fn (dst: u32, mask: u32) u32,
     ) enc.AddrMode {
         if (ea.m == comptime enc.AddrMode.toEffAddr(.data_reg).m) {
@@ -144,7 +145,7 @@ pub const State = struct {
             const mask = @as(u32, 1) << idx;
             const dst = self.regs.d[ea.xn];
             self.regs.sr.z = dst & mask == 0;
-            self.regs.d[ea.xn] = op(dst, mask);
+            if (write_back) self.regs.d[ea.xn] = op(dst, mask);
             return enc.AddrMode.data_reg;
         } else {
             // Byte (aka work on memory)
@@ -152,7 +153,7 @@ pub const State = struct {
             const dst_ea = EffAddr(enc.Size.byte).calc(self, ea);
             const dst = dst_ea.load(self);
             self.regs.sr.z = dst & mask == 0;
-            dst_ea.store(self, @truncate(op(dst, mask)));
+            if (write_back) dst_ea.store(self, @truncate(op(dst, mask)));
             return enc.AddrMode.fromEffAddr(ea).?;
         }
     }
