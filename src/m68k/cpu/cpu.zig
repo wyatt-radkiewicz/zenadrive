@@ -340,6 +340,7 @@ pub fn EffAddr(comptime sz: enc.Size) type {
                     return Self{ .mem = base +% @as(u32, @bitCast(@as(i32, disp))) };
                 },
                 .addr_idx, .pc_idx => {
+                    cpu.cycles += 2;
                     const ext: enc.BriefExtWord = @bitCast(cpu.programFetch(enc.Size.word));
                     const idx: i32 = calc_idx: {
                         const reg = if (ext.mode == 1) cpu.regs.a[ext.reg] else cpu.regs.d[ext.reg];
