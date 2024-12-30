@@ -109,6 +109,20 @@ pub const BitOp = enum(u2) {
     bset,
 };
 
+// Immediate operations
+pub const ImmOp = enum(u3) {
+    ori,
+    andi,
+    subi,
+    addi,
+    eori = 5,
+    
+    pub fn match(bits: u3) bool {
+        _ = std.meta.intToEnum(ImmOp, bits) catch return false;
+        return true;
+    }
+};
+
 // Conditions
 pub const Cond = enum(u4) {
     true,

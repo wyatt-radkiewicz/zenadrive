@@ -3,7 +3,9 @@ const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
-    pattern: enc.BitPattern(16, 0b0000_0010_0011_1100),
+    pattern: enc.BitPattern(9, 0b0_0011_1100),
+    op: enc.ImmOp,
+    line: enc.BitPattern(4, 0b0000),
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
@@ -17,17 +19,26 @@ pub const Tester = struct {
 };
 
 pub fn match(comptime encoding: Encoding) bool {
-    _ = encoding;
-    return true;
+    return switch (encoding.op) {
+        .andi, .eori, .ori => true,
+        else => false,
+    };
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
+    const instr: Encoding = @bitCast(state.ir);
+    
     // Compute effective addresses
     const imm = state.programFetch(enc.Size.byte);
 
     // Set flags and store result
     var sr: u16 = @bitCast(state.regs.sr);
-    sr &= imm;
+    switch (instr.op) {
+        .andi => sr &= imm,
+        .eori => sr ^= imm,
+        .ori => sr |= imm,
+        else => unreachable,
+    }
     state.regs.sr = @bitCast(sr);
 
     // Add processing time
