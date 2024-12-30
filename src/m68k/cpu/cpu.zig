@@ -25,6 +25,9 @@ pub const State = struct {
     pub fn handleException(self: *State) void {
         const exception = self.pending_exception orelse return;
         self.pending_exception = null;
+        const sr_copy = self.regs.sr;
+        self.regs.sr.s = true;
+        self.regs.sr.t = false;
         switch (std.meta.intToEnum(Vector, exception) catch {
             return;
         }) {
@@ -37,6 +40,12 @@ pub const State = struct {
             },
             .illegal_instr => {
                 self.halted = true;
+            },
+            .chk_instr => {
+                self.pushVal(enc.Size.long, self.regs.pc -% 2);
+                self.pushVal(enc.Size.word, @bitCast(sr_copy));
+                self.regs.pc = self.rdBus(enc.Size.long, Vector.chk_instr.getAddr());
+                self.ir = self.programFetch(enc.Size.word);
             },
             else => {},
         }
@@ -496,4 +505,8 @@ pub const Vector = enum(u8) {
     interrupt_autovectors,
     trap_vectors,
     user_interrupts = 40,
+    
+    pub fn getAddr(self: Vector) u24 {
+        return @intFromEnum(self) * 4;
+    }
 };
