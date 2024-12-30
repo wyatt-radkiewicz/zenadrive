@@ -26,12 +26,15 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     const dst = cpu.EffAddr(sz).calc(state, instr.dst.m, instr.dst.xn);
 
     // Set flags and store result
-    const res = cpu.AddFlags(sz).add(imm, dst.load(state));
+    const sr_backup = state.regs.sr;
+    const res = state.addWithFlags(sz, imm, dst.load(state));
+    
+    // Only update flags if we are not adding to an address register
     switch (dst) {
-        .addr_reg => {},
-        else => state.setArithFlags(sz, res),
+        .addr_reg => state.regs.sr = sr_backup,
+        else => {},
     }
-    dst.store(state, res.val);
+    dst.store(state, res);
 
     // Add processing time
     state.cycles += switch (dst) {

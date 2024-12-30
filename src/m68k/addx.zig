@@ -33,14 +33,15 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
 
     // Set flags and store result
     const extend: sz.getType(.unsigned) = @intFromBool(state.regs.sr.x);
-    const with_one = cpu.AddFlags(sz).add(extend, dst_ea.load(state));
-    const with_src = cpu.AddFlags(sz).add(src_ea.load(state), with_one.val);
-    state.regs.sr.c = with_one.carry or with_src.carry;
-    state.regs.sr.v = with_one.overflow or with_src.overflow;
-    if (with_src.val != 0) state.regs.sr.z = false;
-    state.regs.sr.n = @as(sz.getType(.signed), @bitCast(with_src.val)) < 0;
-    state.regs.sr.x = with_one.carry or with_src.carry;
-    dst_ea.store(state, with_src.val);
+    const with_one = state.addWithFlags(sz, extend, dst_ea.load(state));
+    const sr = state.regs.sr;
+    const res = state.addWithFlags(sz, src_ea.load(state), with_one);
+    state.regs.sr.c = state.regs.sr.c or sr.c;
+    state.regs.sr.v = state.regs.sr.v or sr.v;
+    if (res != 0) state.regs.sr.z = false;
+    state.regs.sr.n = @as(sz.getType(.signed), @bitCast(res)) < 0;
+    state.regs.sr.x = state.regs.sr.c;
+    dst_ea.store(state, res);
 
     // Add processing time
     switch (dst_ea) {

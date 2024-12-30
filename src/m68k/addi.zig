@@ -28,9 +28,8 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     const dst = cpu.EffAddr(sz).calc(state, instr.dst.m, instr.dst.xn);
 
     // Set flags and store result
-    const res = cpu.AddFlags(sz).add(imm, dst.load(state));
-    state.setArithFlags(sz, res);
-    dst.store(state, res.val);
+    const res = state.addWithFlags(sz, imm, dst.load(state));
+    dst.store(state, res);
 
     // Add processing time
     if (sz == .long) {

@@ -25,9 +25,8 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     const dst_ea = cpu.EffAddr(sz).calc(state, instr.dst.m, instr.dst.xn);
 
     // Set flags and store result
-    const res = cpu.AddFlags(sz).add(state.loadReg(.data, sz, instr.src), dst_ea.load(state));
-    state.setArithFlags(sz, res);
-    dst_ea.store(state, res.val);
+    const res = state.addWithFlags(sz, dst_ea.load(state), state.loadReg(.data, sz, instr.src));
+    dst_ea.store(state, res);
 
     // Fetch next instruction
     state.ir = state.programFetch(enc.Size.word);

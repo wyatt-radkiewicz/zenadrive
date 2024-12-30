@@ -36,9 +36,8 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
     }
     
     // Set flags and store result
-    const res = cpu.AddFlags(sz).add(src_ea.load(state), state.loadReg(.data, sz, instr.dst));
-    state.setArithFlags(sz, res);
-    state.storeReg(.data, sz, instr.dst, res.val);
+    const res = state.addWithFlags(sz, src_ea.load(state), state.loadReg(.data, sz, instr.dst));
+    state.storeReg(.data, sz, instr.dst, res);
 
     // Add processing time and fetch next instruction
     if (sz == .long) {

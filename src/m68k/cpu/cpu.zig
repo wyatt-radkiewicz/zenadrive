@@ -41,7 +41,7 @@ pub const State = struct {
             else => {},
         }
     }
-    
+
     // Load a register while truncating result to desired size
     pub inline fn loadReg(self: *State, comptime ty: Regs.GpType, comptime sz: enc.Size, reg: u3) sz.getType(.unsigned) {
         const reg_data = switch (ty) {
@@ -50,7 +50,7 @@ pub const State = struct {
         };
         return @truncate(reg_data);
     }
-    
+
     // Overwrites register
     pub inline fn storeReg(self: *State, comptime ty: Regs.GpType, comptime sz: enc.Size, reg: u3, data: sz.getType(.unsigned)) void {
         const mask: u32 = std.math.maxInt(sz.getType(.unsigned));
@@ -65,22 +65,70 @@ pub const State = struct {
             },
         }
     }
-    
+
     // Set flags for normal arithmatic operations
-    pub fn setArithFlags(self: *State, comptime sz: enc.Size, add: AddFlags(sz)) void {
-        self.regs.sr.c = add.carry;
-        self.regs.sr.v = add.overflow;
-        self.regs.sr.z = add.val == 0;
-        self.regs.sr.z = @as(sz.getType(.signed), @bitCast(add.val)) < 0;
-        self.regs.sr.x = add.carry;
+    pub inline fn addWithFlags(
+        self: *State,
+        comptime sz: enc.Size,
+        lhs: sz.getType(.unsigned),
+        rhs: sz.getType(.unsigned),
+    ) sz.getType(.unsigned) {
+        const S = sz.getType(.signed);
+        const res = lhs +% rhs;
+        self.regs.sr.c = @addWithOverflow(lhs, rhs)[1] != 0;
+        self.regs.sr.v = @addWithOverflow(@as(S, @bitCast(lhs)), @as(S, @bitCast(rhs)))[1] != 0;
+        self.regs.sr.z = res == 0;
+        self.regs.sr.z = @as(sz.getType(.signed), @bitCast(res)) < 0;
+        self.regs.sr.x = self.regs.sr.c;
+        return res;
     }
-    
+
     // Set logical bit operation flags
-    pub fn setLogicalFlags(self: *State, comptime sz: enc.Size, val: sz.getType(.unsigned)) void {
+    pub inline fn setLogicalFlags(self: *State, comptime sz: enc.Size, val: sz.getType(.unsigned)) void {
         self.regs.sr.c = false;
         self.regs.sr.v = false;
         self.regs.sr.z = val == 0;
         self.regs.sr.n = checkMsb(val);
+    }
+
+    // Shift integer and set flags
+    // Does variable cycle calculation (aka 2m)
+    pub fn arithShiftWithFlags(
+        self: *State,
+        comptime sz: enc.Size,
+        dir: enc.ShiftDir,
+        data: sz.getType(.unsigned),
+        shift: u6,
+    ) sz.getType(.unsigned) {
+        const S = sz.getType(.signed);
+        var x = data;
+        self.regs.sr.c = false;
+        self.regs.sr.v = false;
+        switch (dir) {
+            .left => {
+                for (0..shift) |_| {
+                    const old_msb = checkMsb(x);
+                    self.cycles += 2;
+                    x <<= 1;
+                    const new_msb = checkMsb(x);
+                    self.regs.sr.c = old_msb;
+                    self.regs.sr.x = old_msb;
+                    self.regs.sr.v = self.regs.sr.v or (old_msb != new_msb);
+                }
+            },
+            .right => {
+                for (0..shift) |_| {
+                    const old_lsb = (x & 1) != 0;
+                    self.cycles += 2;
+                    x = @bitCast(@as(S, @bitCast(x)) >> 1);
+                    self.regs.sr.c = old_lsb;
+                    self.regs.sr.x = old_lsb;
+                }
+            },
+        }
+        self.regs.sr.z = x == 0;
+        self.regs.sr.n = checkMsb(x);
+        return x;
     }
 
     pub fn programFetch(self: *State, comptime sz: enc.Size) sz.getType(.unsigned) {
@@ -136,26 +184,6 @@ pub fn checkMsb(int: anytype) bool {
     const Type = @TypeOf(int);
     const info = @typeInfo(Type).Int;
     return (int >> (info.bits - 1)) != 0;
-}
-
-/// Helper functions for overflow/carry etc
-pub fn AddFlags(comptime sz: enc.Size) type {
-    const Data = sz.getType(.unsigned);
-    return struct {
-        val: Data,
-        carry: bool,
-        overflow: bool,
-        
-        pub inline fn add(lhs: Data, rhs: Data) @This() {
-            const S = sz.getType(.signed);
-            
-            return .{
-                .val = lhs +% rhs,
-                .carry = @addWithOverflow(lhs, rhs)[1] != 0,
-                .overflow = @addWithOverflow(@as(S, @bitCast(lhs)), @as(S, @bitCast(rhs)))[1] != 0,
-            };
-        }
-    };
 }
 
 /// Helper struct to represent binary coded decimal bytes
@@ -362,12 +390,12 @@ pub const Regs = struct {
         reserved_trace: u1 = 0,
         t: bool = false, // Trace mode enable
     };
-    
+
     // General Purpose register kind
     pub const GpType = enum {
         data,
         addr,
-        
+
         pub fn fromAddrMode(md: enc.AddrMode) ?GpType {
             return switch (md) {
                 .data_reg => GpType.data,

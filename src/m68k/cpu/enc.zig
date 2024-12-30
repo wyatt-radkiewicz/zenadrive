@@ -78,6 +78,17 @@ pub const BriefExtWord = packed struct {
     mode: u1,
 };
 
+// Shift direction used in shift instructions
+pub const ShiftDir = enum (u1) {
+    right,
+    left,
+    
+    pub fn match(bits: u1) bool {
+        _ = bits;
+        return true;
+    }
+};
+
 // Type used in MatchEffAddr
 pub fn MatchEffAddr(comptime invalid_modes: []const AddrMode) type {
     return packed struct {

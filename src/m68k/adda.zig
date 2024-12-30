@@ -41,8 +41,8 @@ pub fn run(state: *cpu.State) void {
     };
 
     // Set flags and store result
-    const res = cpu.AddFlags(enc.Size.long).add(src, state.loadReg(.addr, enc.Size.long, instr.dst));
-    state.storeReg(.addr, enc.Size.long, instr.dst, res.val);
+    const res = src +% state.loadReg(.addr, enc.Size.long, instr.dst);
+    state.storeReg(.addr, enc.Size.long, instr.dst, res);
 
     // Fetch next instruction
     state.ir = state.programFetch(enc.Size.word);
