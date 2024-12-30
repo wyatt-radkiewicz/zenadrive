@@ -4,12 +4,11 @@ const cpu = @import("cpu/cpu.zig");
 pub const Encoding = packed struct {
     src: u3,
     rm: bool,
-    pattern: enc.MatchBits(5, 0b10000),
+    pattern: enc.BitPattern(5, 0b10000),
     dst: u3,
-    line: enc.MatchBits(4, 0b1100),
+    line: enc.BitPattern(4, 0b1100),
 };
-pub const ComptimeArgs = struct {};
-
+pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
     
@@ -20,20 +19,22 @@ pub const Tester = struct {
     }
 };
 
-pub fn run(state: *cpu.State, comptime args: ComptimeArgs) void {
+pub fn match(comptime encoding: Encoding) bool {
+    _ = encoding;
+    return true;
+}
+pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Get instruction encoding
     const instr: Encoding = @bitCast(state.ir);
     _ = args;
 
-    // Get addressing mode
-    const mode = enc.AddrMode.toModeBits(if (instr.rm)
-        enc.AddrMode.addr_predec
-    else
-        enc.AddrMode.data_reg)[0];
+    // Get effective addressing mode
+    const addrmode = if (instr.rm) enc.AddrMode.addr_predec else enc.AddrMode.data_reg;
+    const mode = addrmode.toEffAddr().m;
 
     // Get source and destination ready
-    const src = cpu.EffAddr(enc.Size.byte).calc(state, mode, instr.src).load(state);
-    const dst_ea = cpu.EffAddr(enc.Size.byte).calc(state, mode, instr.dst);
+    const src = cpu.EffAddr(enc.Size.byte).calc(state, .{ .m = mode, .xn = instr.src}).load(state);
+    const dst_ea = cpu.EffAddr(enc.Size.byte).calc(state, .{ .m = mode, .xn = instr.dst});
 
     // Compute addition
     const extend: cpu.Bcd = @bitCast(@as(u8, @intFromBool(state.regs.sr.x)));

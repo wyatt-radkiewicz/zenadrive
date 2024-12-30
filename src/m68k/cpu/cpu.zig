@@ -134,27 +134,26 @@ pub const State = struct {
     // Setup a bit operation with flags. Returns addressing mode used
     pub fn bitOpWithFlags(
         self: *State,
-        m: u3,
-        xn: u3,
+        ea: enc.EffAddr,
         bit_idx: u32,
         op: fn (dst: u32, mask: u32) u32,
     ) enc.AddrMode {
-        if (m == comptime enc.AddrMode.toModeBits(.data_reg)[0]) {
+        if (ea.m == comptime enc.AddrMode.toModeBits(.data_reg)[0]) {
             // Long (aka work on data register)
             const idx: u5 = @truncate(bit_idx);
             const mask = @as(u32, 1) << idx;
-            const dst = self.regs.d[xn];
+            const dst = self.regs.d[ea.xn];
             self.regs.sr.z = dst & mask == 0;
-            self.regs.d[xn] = op(dst, mask);
+            self.regs.d[ea.xn] = op(dst, mask);
             return enc.AddrMode.data_reg;
         } else {
             // Byte (aka work on memory)
             const mask = @as(u8, 1) << @as(u3, @truncate(bit_idx));
-            const dst_ea = EffAddr(enc.Size.byte).calc(self, m, xn);
+            const dst_ea = EffAddr(enc.Size.byte).calc(self, ea);
             const dst = dst_ea.load(self);
             self.regs.sr.z = dst & mask == 0;
             dst_ea.store(self, @truncate(op(dst, mask)));
-            return enc.AddrMode.fromModeBits(m, xn).?;
+            return enc.AddrMode.fromModeBits(ea).?;
         }
     }
 
@@ -272,24 +271,24 @@ pub fn EffAddr(comptime sz: enc.Size) type {
         }
 
         // Calculate address only (no data reading)
-        pub fn calc(cpu: *State, m: u3, xn: u3) Self {
-            const mode = enc.AddrMode.fromModeBits(m, xn) orelse unreachable;
+        pub fn calc(cpu: *State, ea: enc.EffAddr) Self {
+            const mode = enc.AddrMode.fromEffAddr(ea) orelse unreachable;
             switch (mode) {
-                .data_reg => return Self{ .data_reg = xn },
-                .addr_reg => return Self{ .addr_reg = xn },
-                .addr => return Self{ .mem = cpu.regs.a[xn] },
+                .data_reg => return Self{ .data_reg = ea.xn },
+                .addr_reg => return Self{ .addr_reg = ea.xn },
+                .addr => return Self{ .mem = cpu.regs.a[ea.xn] },
                 .addr_postinc => {
-                    const addr = cpu.regs.a[xn];
-                    cpu.regs.a[xn] +%= @sizeOf(Data);
+                    const addr = cpu.regs.a[ea.xn];
+                    cpu.regs.a[ea.xn] +%= @sizeOf(Data);
                     return Self{ .mem = addr };
                 },
                 .addr_predec => {
                     cpu.cycles += 2;
-                    cpu.regs.a[xn] -%= @sizeOf(Data);
-                    return Self{ .mem = cpu.regs.a[xn] };
+                    cpu.regs.a[ea.xn] -%= @sizeOf(Data);
+                    return Self{ .mem = cpu.regs.a[ea.xn] };
                 },
                 .addr_disp, .pc_disp => {
-                    const base = if (mode == .pc_disp) cpu.regs.pc else cpu.regs.a[xn];
+                    const base = if (mode == .pc_disp) cpu.regs.pc else cpu.regs.a[ea.xn];
                     const disp: i16 = @bitCast(cpu.programFetch(enc.Size.word));
                     return Self{ .mem = base +% @as(u32, @bitCast(@as(i32, disp))) };
                 },
@@ -300,7 +299,7 @@ pub fn EffAddr(comptime sz: enc.Size) type {
                         const trunc: u16 = @truncate(reg);
                         break :calc_idx @as(i16, @bitCast(trunc));
                     };
-                    var addr = if (mode == .pc_disp) cpu.regs.pc else cpu.regs.a[xn];
+                    var addr = if (mode == .pc_disp) cpu.regs.pc else cpu.regs.a[ea.xn];
                     addr +%= @bitCast(@as(i32, ext.disp));
                     addr +%= @bitCast(idx);
                     return Self{ .mem = addr };
