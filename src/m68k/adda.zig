@@ -2,13 +2,13 @@ const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
-    src: enc.MatchEffAddr(&[0]enc.AddrMode{}),
-    pattern: enc.MatchBits(2, 0b11),
+    src: enc.EffAddr,
+    pattern: enc.BitPattern(2, 0b11),
     size: u1,
     dst: u3,
-    line: enc.MatchBits(4, 0b1101),
+    line: enc.BitPattern(4, 0b1101),
 };
-
+pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
     
@@ -20,14 +20,19 @@ pub const Tester = struct {
     }
 };
 
-pub fn run(state: *cpu.State) void {
+pub fn match(comptime encoding: Encoding) bool {
+    _ = encoding;
+    return true;
+}
+pub fn run(state: *cpu.State, comptime args: Variant) void {
     const instr: Encoding = @bitCast(state.ir);
+    _ = args;
 
     // Compute source effective address and sign extend
     const src = get_src: {
         switch (enc.Size.fromBit(instr.size)) {
             inline else => |sz| {
-                const ea = cpu.EffAddr(sz).calc(state, instr.src.m, instr.src.xn);
+                const ea = cpu.EffAddr(sz).calc(state, instr.src);
                 state.cycles += switch (sz) {
                     .byte => unreachable,
                     .word => 4,

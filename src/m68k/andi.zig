@@ -1,12 +1,15 @@
+const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
-    dst: enc.MatchEffAddr(&[_]enc.AddrMode{ .addr_reg, .imm, .pc_idx, .pc_disp }),
+    dst: enc.EffAddr,
     size: enc.Size,
-    pattern: enc.MatchBits(8, 0b0000_0010),
+    pattern: enc.BitPattern(8, 0b0000_0010),
 };
-
+pub const Variant = packed struct {
+    size: enc.Size,
+};
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
     
@@ -22,19 +25,28 @@ pub const Tester = struct {
     }
 };
 
-pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
+pub fn match(comptime encoding: Encoding) bool {
+    _ = std.mem.indexOfScalar(enc.AddrMode, &[_]enc.AddrMode{
+        .addr_reg,
+        .imm,
+        .pc_idx,
+        .pc_disp,
+    }, enc.AddrMode.fromEffAddr(encoding.dst).?) orelse return true;
+    return false;
+}
+pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Compute effective addresses
     const instr: Encoding = @bitCast(state.ir);
-    const imm = state.programFetch(sz);
-    const dst = cpu.EffAddr(sz).calc(state, instr.dst.m, instr.dst.xn);
+    const imm = state.programFetch(args.size);
+    const dst = cpu.EffAddr(args.size).calc(state, instr.dst);
 
     // Set flags and store result
     const res = imm & dst.load(state);
-    state.setLogicalFlags(sz, res);
+    state.setLogicalFlags(args.size, res);
     dst.store(state, res);
 
     // Add processing time
-    if (sz == .long) {
+    if (args.size == .long) {
         switch (dst) {
             .data_reg => state.cycles += 4,
             else => {},

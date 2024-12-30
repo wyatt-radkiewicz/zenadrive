@@ -3,14 +3,16 @@ const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
     dst: u3,
-    pattern: enc.MatchBits(2, 0b00),
+    pattern: enc.BitPattern(2, 0b00),
     isreg: bool,
     size: enc.Size,
     dir: enc.ShiftDir,
     cnt: u3,
-    line: enc.MatchBits(4, 0b1110),
+    line: enc.BitPattern(4, 0b1110),
 };
-
+pub const Variant = packed struct {
+    size: enc.Size,
+};
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
     
@@ -22,22 +24,26 @@ pub const Tester = struct {
     }
 };
 
-pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
+pub fn match(comptime encoding: Encoding) bool {
+    _ = encoding;
+    return true;
+}
+pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Get encoding
     const instr: Encoding = @bitCast(state.ir);
 
     // Do operation
     const shift_amount: u6 = if (instr.isreg) @truncate(state.regs.d[instr.cnt]) else instr.cnt;
-    state.storeReg(.data, sz, instr.dst, switch (instr.dir) {
+    state.storeReg(.data, args.size, instr.dst, switch (instr.dir) {
         inline else => |dir| state.arithShiftWithFlags(
-            sz,
+            args.size,
             dir,
-            state.loadReg(.data, sz, instr.dst),
+            state.loadReg(.data, args.size, instr.dst),
             shift_amount,
         ),
     });
 
     // Add processing time and fetch next instruction
-    state.cycles += if (sz == .long) 4 else 2;
+    state.cycles += if (args.size == .long) 4 else 2;
     state.ir = state.programFetch(enc.Size.word);
 }

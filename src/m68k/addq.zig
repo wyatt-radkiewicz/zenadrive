@@ -1,12 +1,16 @@
+const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
-    dst: enc.MatchEffAddr(&[_]enc.AddrMode{ .imm, .pc_idx, .pc_disp }),
+    dst: enc.EffAddr,
     size: enc.Size,
-    padding: enc.MatchBits(1, 0),
+    padding: enc.BitPattern(1, 0),
     data: u3,
-    line: enc.MatchBits(4, 0b0101),
+    line: enc.BitPattern(4, 0b0101),
+};
+pub const Variant = packed struct {
+    size: enc.Size,
 };
 
 pub const Tester = struct {
@@ -20,15 +24,23 @@ pub const Tester = struct {
     }
 };
 
-pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
+pub fn match(comptime encoding: Encoding) bool {
+    _ = std.mem.indexOfScalar(enc.AddrMode, &[_]enc.AddrMode{
+        .imm,
+        .pc_idx,
+        .pc_disp,
+    }, enc.AddrMode.fromEffAddr(encoding.dst).?) orelse return true;
+    return false;
+}
+pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Compute effective addresses
     const instr: Encoding = @bitCast(state.ir);
-    const imm: sz.getType(.unsigned) = instr.data;
-    const dst = cpu.EffAddr(sz).calc(state, instr.dst.m, instr.dst.xn);
+    const imm: args.size.getType(.unsigned) = instr.data;
+    const dst = cpu.EffAddr(args.size).calc(state, instr.dst);
 
     // Set flags and store result
     const sr_backup = state.regs.sr;
-    const res = state.addWithFlags(sz, imm, dst.load(state));
+    const res = state.addWithFlags(args.size, imm, dst.load(state));
     
     // Only update flags if we are not adding to an address register
     switch (dst) {
@@ -39,7 +51,7 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
 
     // Add processing time
     state.cycles += switch (dst) {
-        .data_reg => if (sz == .long) 4 else 0,
+        .data_reg => if (args.size == .long) 4 else 0,
         .addr_reg => 4,
         else => 0,
     };

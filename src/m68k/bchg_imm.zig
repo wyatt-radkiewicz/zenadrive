@@ -1,11 +1,12 @@
+const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
-    dst: enc.MatchEffAddr(&[_]enc.AddrMode{ .addr_reg, .imm, .pc_idx, .pc_disp }),
-    line: enc.MatchBits(10, 0b0000_1000_01),
+    dst: enc.EffAddr,
+    line: enc.BitPattern(10, 0b0000_1000_01),
 };
-
+pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
 
@@ -23,14 +24,23 @@ pub const Tester = struct {
     }
 };
 
-pub fn run(state: *cpu.State) void {
+pub fn match(comptime encoding: Encoding) bool {
+    _ = std.mem.indexOfScalar(enc.AddrMode, &[_]enc.AddrMode{
+        .addr_reg,
+        .imm,
+        .pc_idx,
+        .pc_disp,
+    }, enc.AddrMode.fromEffAddr(encoding.dst).?) orelse return true;
+    return false;
+}
+pub fn run(state: *cpu.State, comptime args: Variant) void {
+    _ = args;
     // Get encoding
     const instr: Encoding = @bitCast(state.ir);
 
     const bit_idx = state.programFetch(enc.Size.byte) % 32;
     switch (state.bitOpWithFlags(
-        instr.dst.m,
-        instr.dst.xn,
+        instr.dst,
         bit_idx,
         struct {
             fn inner(dst: u32, mask: u32) u32 {

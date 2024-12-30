@@ -4,11 +4,14 @@ const cpu = @import("cpu/cpu.zig");
 pub const Encoding = packed struct {
     src: u3,
     rm: bool,
-    pattern2: enc.MatchBits(2, 0),
+    pattern2: enc.BitPattern(2, 0),
     size: enc.Size,
-    pattern1: enc.MatchBits(1, 1),
+    pattern1: enc.BitPattern(1, 1),
     dst: u3,
-    line: enc.MatchBits(4, 0b1101),
+    line: enc.BitPattern(4, 0b1101),
+};
+pub const Variant = packed struct {
+    size: enc.Size,
 };
 
 pub const Tester = struct {
@@ -22,25 +25,30 @@ pub const Tester = struct {
     }
 };
 
-pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
+pub fn match(comptime encoding: Encoding) bool {
+    _ = encoding;
+    return true;
+}
+pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Compute effective addresses
     const instr: Encoding = @bitCast(state.ir);
-    const mode = enc.AddrMode.toModeBits(if (instr.rm)
+    const addrmode = if (instr.rm)
         enc.AddrMode.addr_predec
     else
-        enc.AddrMode.data_reg)[0];
-    const src_ea = cpu.EffAddr(sz).calc(state, mode, instr.src);
-    const dst_ea = cpu.EffAddr(sz).calc(state, mode, instr.dst);
+        enc.AddrMode.data_reg;
+    const mode = addrmode.toEffAddr().m;
+    const src_ea = cpu.EffAddr(args.size).calc(state, .{ .m = mode, .xn = instr.src});
+    const dst_ea = cpu.EffAddr(args.size).calc(state, .{ .m = mode, .xn = instr.dst});
 
     // Set flags and store result
-    const extend: sz.getType(.unsigned) = @intFromBool(state.regs.sr.x);
-    const with_one = state.addWithFlags(sz, extend, dst_ea.load(state));
+    const extend: args.size.getType(.unsigned) = @intFromBool(state.regs.sr.x);
+    const with_one = state.addWithFlags(args.size, extend, dst_ea.load(state));
     const sr = state.regs.sr;
-    const res = state.addWithFlags(sz, src_ea.load(state), with_one);
+    const res = state.addWithFlags(args.size, src_ea.load(state), with_one);
     state.regs.sr.c = state.regs.sr.c or sr.c;
     state.regs.sr.v = state.regs.sr.v or sr.v;
     if (res != 0) state.regs.sr.z = false;
-    state.regs.sr.n = @as(sz.getType(.signed), @bitCast(res)) < 0;
+    state.regs.sr.n = @as(args.size.getType(.signed), @bitCast(res)) < 0;
     state.regs.sr.x = state.regs.sr.c;
     dst_ea.store(state, res);
 
@@ -49,7 +57,7 @@ pub fn runWithSize(state: *cpu.State, comptime sz: enc.Size) void {
         // Addx seems to have some sort of optimization in the microcode for this so we
         // automatically remove 2 of the cycles that were added in effective address calculation
         .mem => state.cycles -= 2,
-        else => state.cycles += if (sz == .long) 4 else 0,
+        else => state.cycles += if (args.size == .long) 4 else 0,
     }
     
     // Fetch next instruction

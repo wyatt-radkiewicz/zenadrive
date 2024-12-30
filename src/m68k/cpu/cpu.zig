@@ -138,7 +138,7 @@ pub const State = struct {
         bit_idx: u32,
         op: fn (dst: u32, mask: u32) u32,
     ) enc.AddrMode {
-        if (ea.m == comptime enc.AddrMode.toModeBits(.data_reg)[0]) {
+        if (ea.m == comptime enc.AddrMode.toEffAddr(.data_reg).m) {
             // Long (aka work on data register)
             const idx: u5 = @truncate(bit_idx);
             const mask = @as(u32, 1) << idx;
@@ -153,7 +153,7 @@ pub const State = struct {
             const dst = dst_ea.load(self);
             self.regs.sr.z = dst & mask == 0;
             dst_ea.store(self, @truncate(op(dst, mask)));
-            return enc.AddrMode.fromModeBits(ea).?;
+            return enc.AddrMode.fromEffAddr(ea).?;
         }
     }
 
@@ -272,7 +272,7 @@ pub fn EffAddr(comptime sz: enc.Size) type {
 
         // Calculate address only (no data reading)
         pub fn calc(cpu: *State, ea: enc.EffAddr) Self {
-            const mode = enc.AddrMode.fromEffAddr(ea) orelse unreachable;
+            const mode = enc.AddrMode.fromEffAddr(ea).?;
             switch (mode) {
                 .data_reg => return Self{ .data_reg = ea.xn },
                 .addr_reg => return Self{ .addr_reg = ea.xn },

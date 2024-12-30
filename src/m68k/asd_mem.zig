@@ -1,13 +1,14 @@
+const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
-    dst: enc.MatchEffAddr(&[_]enc.AddrMode{.data_reg, .addr_reg, .imm, .pc_disp, .pc_idx}),
-    pattern1: enc.MatchBits(2, 0b11),
+    dst: enc.EffAddr,
+    pattern1: enc.BitPattern(2, 0b11),
     dir: enc.ShiftDir,
-    pattern2: enc.MatchBits(7, 0b1110_000),
+    pattern2: enc.BitPattern(7, 0b1110_000),
 };
-
+pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
     
@@ -19,10 +20,21 @@ pub const Tester = struct {
     }
 };
 
-pub fn run(state: *cpu.State) void {
+pub fn match(comptime encoding: Encoding) bool {
+    _ = std.mem.indexOfScalar(enc.AddrMode, &[_]enc.AddrMode{
+        .data_reg,
+        .addr_reg,
+        .imm,
+        .pc_idx,
+        .pc_disp,
+    }, enc.AddrMode.fromEffAddr(encoding.dst).?) orelse return true;
+    return false;
+}
+pub fn run(state: *cpu.State, comptime args: Variant) void {
+    _ = args;
     // Get encoding
     const instr: Encoding = @bitCast(state.ir);
-    const dst_ea = cpu.EffAddr(enc.Size.word).calc(state, instr.dst.m, instr.dst.xn);
+    const dst_ea = cpu.EffAddr(enc.Size.word).calc(state, instr.dst);
 
     // Do operation
     dst_ea.store(state, switch (instr.dir) {

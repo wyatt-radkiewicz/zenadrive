@@ -3,10 +3,10 @@ const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
     disp: i8,
-    cond: enc.MatchCond(&[_]enc.Cond{ .true, .false }),
-    line: enc.MatchBits(4, 0b0110),
+    cond: enc.Cond,
+    line: enc.BitPattern(4, 0b0110),
 };
-
+pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = @import("std").testing.expect;
     
@@ -17,7 +17,11 @@ pub const Tester = struct {
     }
 };
 
-pub fn run(state: *cpu.State) void {
+pub fn match(comptime encoding: Encoding) bool {
+    return encoding.cond != .@"true" and encoding.cond != .@"false";
+}
+pub fn run(state: *cpu.State, comptime args: Variant) void {
+    _ = args;
     // Get encoding
     const instr: Encoding = @bitCast(state.ir);
 
@@ -31,7 +35,7 @@ pub fn run(state: *cpu.State) void {
             const disp: u32 = @bitCast(@as(i32, disp_word));
             
             // Check if the branch succeeded
-            if (state.regs.sr.satisfiesCond(instr.cond.val)) {
+            if (state.regs.sr.satisfiesCond(instr.cond)) {
                 state.cycles += 2;
                 state.regs.pc = base +% disp;
             } else {
@@ -46,7 +50,7 @@ pub fn run(state: *cpu.State) void {
             state.ir = state.programFetch(enc.Size.word);
             
             // Check if the branch succeeded
-            if (state.regs.sr.satisfiesCond(instr.cond.val)) {
+            if (state.regs.sr.satisfiesCond(instr.cond)) {
                 const disp: u32 = @bitCast(@as(i32, instr.disp));
                 state.cycles += 2;
                 state.regs.pc = base +% disp;
