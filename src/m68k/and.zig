@@ -30,10 +30,10 @@ pub fn match(comptime encoding: Encoding) bool {
     if (encoding.dir == .dn_ea_store_dn) {
         return enc.AddrMode.fromEffAddr(encoding.ea).? != .addr_reg;
     } else {
-        _ = std.mem.indexOfScalar(enc.AddrMode, &[_]enc.AddrMode{
-            .data_reg, .addr_reg, .imm, .pc_idx, .pc_disp,
-        }, enc.AddrMode.fromEffAddr(encoding.ea).?) orelse return true;
-        return false;
+        return switch(enc.AddrMode.fromEffAddr(encoding.ea).?) {
+            .data_reg, .addr_reg, .imm, .pc_idx, .pc_disp => false,
+            else => true,
+        };
     }
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {

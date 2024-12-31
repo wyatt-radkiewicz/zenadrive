@@ -2,13 +2,19 @@ const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
+const Dir = enum(u1) {
+    reg_to_mem,
+    mem_to_reg,
+};
 pub const Encoding = packed struct {
-    dst: enc.EffAddr,
-    size: enc.Size,
-    pattern: enc.BitPattern(8, 0b0100_0010),
+    ea: enc.EffAddr,
+    size: u1,
+    pattern: enc.BitPattern(3, 0b001),
+    dir: Dir,
+    line: enc.BitPattern(5, 0b01001),
 };
 pub const Variant = packed struct {
-    size: enc.Size,
+    size: u1,
 };
 pub const Tester = struct {
     const expect = std.testing.expect;
@@ -21,10 +27,17 @@ pub const Tester = struct {
 };
 
 pub fn match(comptime encoding: Encoding) bool {
-    return switch (enc.AddrMode.fromEffAddr(encoding.dst).?) {
-        .addr_reg, .imm, .pc_idx, .pc_disp => false,
-        else => true,
-    };
+    const mode = enc.AddrMode.fromEffAddr(encoding.ea).?;
+    if (std.mem.indexOfScalar(enc.AddrMode, &[_]enc.AddrMode{
+        .data_reg,
+        .addr_reg,
+        .imm,
+    }, mode)) return false;
+    if (encoding.dir == .mem_to_reg) {
+        return mode != .addr_predec;
+    } else {
+        return mode != .addr_postinc and mode != .pc_idx and mode != .pc
+    }
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Compute effective addresses

@@ -31,11 +31,10 @@ pub fn match(comptime encoding: Encoding) bool {
     if (encoding.dir == .dn_ea_store_dn) {
         if (encoding.size == .byte and mode == .addr_reg) return false;
     } else {
-        if (std.mem.indexOfScalar(enc.AddrMode, &[_]enc.AddrMode{
-            .data_reg, .addr_reg, .imm, .pc_idx, .pc_disp,
-        }, mode)) |_| {
-            return false;
-        }
+        return switch (mode) {
+            .data_reg, .addr_reg, .imm, .pc_idx, .pc_disp => false,
+            else => true
+        };
     }
     return true;
 }

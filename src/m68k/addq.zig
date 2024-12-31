@@ -25,12 +25,10 @@ pub const Tester = struct {
 };
 
 pub fn match(comptime encoding: Encoding) bool {
-    _ = std.mem.indexOfScalar(enc.AddrMode, &[_]enc.AddrMode{
-        .imm,
-        .pc_idx,
-        .pc_disp,
-    }, enc.AddrMode.fromEffAddr(encoding.dst).?) orelse return true;
-    return false;
+    return switch (enc.AddrMode.fromEffAddr(encoding.dst).?) {
+        .imm, .pc_idx, .pc_disp => false,
+        else => true,
+    };
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Compute effective addresses

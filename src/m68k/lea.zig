@@ -20,14 +20,10 @@ pub const Tester = struct {
 };
 
 pub fn match(comptime encoding: Encoding) bool {
-    _ = std.mem.indexOfScalar(enc.AddrMode, &[_]enc.AddrMode{
-        .data_reg,
-        .addr_reg,
-        .addr_postinc,
-        .addr_predec,
-        .imm,
-    }, enc.AddrMode.fromEffAddr(encoding.loc).?) orelse return true;
-    return false;
+    return switch (enc.AddrMode.fromEffAddr(encoding.loc).?) {
+        .data_reg, .addr_reg, .addr_postinc, .addr_predec, .imm => false,
+        else => true,
+    };
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
