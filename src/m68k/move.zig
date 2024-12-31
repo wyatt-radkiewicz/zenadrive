@@ -23,8 +23,10 @@ pub const Tester = struct {
 };
 
 pub fn match(comptime encoding: Encoding) bool {
-    return switch (enc.AddrMode.fromEffAddr(.{ .m = encoding.dst_m, .xn = encoding.dst_xn })) {
-        null, .addr_reg, .imm, .pc_idx, .pc_disp => false,
+    const mode = enc.AddrMode.fromEffAddr(.{ .m = encoding.dst_m, .xn = encoding.dst_xn }) orelse
+        return false;
+    return switch (mode) {
+        .addr_reg, .imm, .pc_idx, .pc_disp => false,
         else => true,
     };
 }
