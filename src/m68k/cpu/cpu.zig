@@ -28,7 +28,7 @@ pub const State = struct {
         self.pending_exception = null;
         self.handleException(exception);
     }
-    
+
     // Starts exception handler code for the exception
     pub fn handleException(self: *State, exception: u8) void {
         const sr_copy = self.regs.sr;
@@ -80,20 +80,20 @@ pub const State = struct {
             },
         }
     }
-    
+
     // Push value onto program stack
     pub fn pushVal(self: *State, comptime sz: enc.Size, data: sz.getType(.unsigned)) void {
         self.regs.a[Regs.sp] -= @sizeOf(sz.getType(.unsigned));
         self.wrBus(sz, self.regs.a[Regs.sp], data);
     }
-    
+
     // Pop value from program stack
     pub fn popVal(self: *State, comptime sz: enc.Size) sz.getType(.unsigned) {
         const val = self.rdBus(sz, self.regs.a[Regs.sp]);
         self.regs.a[Regs.sp] += @sizeOf(sz.getType(.unsigned));
         return val;
     }
-    
+
     pub fn setNegAndZeroFlags(self: *State, comptime sz: enc.Size, val: sz.getType(.unsigned)) void {
         self.regs.sr.z = val == 0;
         self.regs.sr.n = @as(sz.getType(.signed), @bitCast(val)) < 0;
@@ -113,7 +113,7 @@ pub const State = struct {
         self.setNegAndZeroFlags(sz, res);
         return res;
     }
-    
+
     // Set flags for normal arithmatic operations
     pub fn subWithFlags(
         self: *State,
@@ -139,14 +139,7 @@ pub const State = struct {
 
     // Shift integer and set flags
     // Does variable cycle calculation (aka 2m)
-    pub fn shiftWithFlags(
-        self: *State,
-        comptime sz: enc.Size,
-        comptime mode: enc.ShiftOp,
-        dir: enc.ShiftDir,
-        data: sz.getType(.unsigned),
-        shift: u6
-    ) sz.getType(.unsigned) {
+    pub fn shiftWithFlags(self: *State, comptime sz: enc.Size, comptime mode: enc.ShiftOp, dir: enc.ShiftDir, data: sz.getType(.unsigned), shift: u6) sz.getType(.unsigned) {
         switch (mode) {
             .shift_arith, .shift_logic => {},
             else => @compileError("Can only use shift mode in shiftWithFlags"),
@@ -186,17 +179,10 @@ pub const State = struct {
         self.setNegAndZeroFlags(sz, x);
         return x;
     }
-    
+
     // Rotate integer and set flags
     // Does variable cycle calculation (aka 2m)
-    pub fn rotateWithFlags(
-        self: *State,
-        comptime sz: enc.Size,
-        comptime mode: enc.ShiftOp,
-        dir: enc.ShiftDir,
-        data: sz.getType(.unsigned),
-        shift: u6
-    ) sz.getType(.unsigned) {
+    pub fn rotateWithFlags(self: *State, comptime sz: enc.Size, comptime mode: enc.ShiftOp, dir: enc.ShiftDir, data: sz.getType(.unsigned), shift: u6) sz.getType(.unsigned) {
         switch (mode) {
             .rotate, .rotate_extended => {},
             else => @compileError("Can only use rotate modes in rotateWithFlags"),
@@ -318,24 +304,46 @@ pub const Bcd = packed struct {
     ones: u4,
     tens: u4,
 
-    pub fn add(lhs: Bcd, rhs: Bcd) struct { Bcd, u1 } {
-        var carried: u1 = 0;
-        var out = lhs;
-        var ones: u32 = out.ones + rhs.ones;
-        var tens: u32 = out.tens + rhs.tens;
+    // Converts the BCD coded number to binary
+    pub fn toBinary(self: Bcd) u8 {
+        return @as(u8, self.tens) * 10 + self.ones;
+    }
 
-        if (ones > 9) {
-            ones %= 10;
-            carried = 1;
-        }
-        out.ones = @truncate(ones);
+    // Returns whether or not the number overflowed in the other bit
+    // It will always return a truncated value
+    pub fn fromBinary(binary: anytype) struct { Bcd, bool } {
+        const truncated = binary % 100;
+        return .{
+            .{
+                .ones = @truncate(truncated % 10),
+                .tens = @truncate(truncated / 10),
+            },
+            truncated != binary,
+        };
+    }
 
-        if (tens > 9) {
-            tens %= 10;
-            carried = 1;
+    // Adds two bcd coded numbers, truncates them and returns the result and if they overflowed
+    pub fn add(lhs: Bcd, rhs: Bcd, extend: u1) struct { Bcd, bool } {
+        const l: u16 = toBinary(lhs);
+        const r: u16 = toBinary(rhs);
+        return fromBinary(l + r + extend);
+    }
+
+    // Subtracts two bcd coded numbers
+    pub fn sub(lhs: Bcd, rhs: Bcd, extend: u1) struct { Bcd, bool } {
+        const l: u16 = toBinary(lhs);
+        const r: u16 = toBinary(rhs) + extend;
+
+        if (l < r) {
+            const diff = (r - l) % 100;
+            const res = 100 - diff;
+            return .{ .{
+                .ones = @truncate(res % 10),
+                .tens = @truncate(res / 10),
+            }, true };
+        } else {
+            return fromBinary(l - r);
         }
-        out.tens = @truncate(tens);
-        return .{ out, carried };
     }
 };
 
@@ -584,7 +592,7 @@ pub const Vector = enum(u8) {
     interrupt_autovectors,
     trap_vectors,
     user_interrupts = 40,
-    
+
     pub fn getAddr(self: Vector) u24 {
         return @intFromEnum(self) * 4;
     }

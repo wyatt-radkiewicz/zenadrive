@@ -38,28 +38,14 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     const dst_ea = cpu.EffAddr(enc.Size.byte).calc(state, .{ .m = mode, .xn = instr.dst});
 
     // Compute addition
-    const extend: cpu.Bcd = @bitCast(@as(u8, @intFromBool(state.regs.sr.x)));
-    var carry: u1 = 0;
-    var bcd: cpu.Bcd = @bitCast(src);
-    
-    // Add the destination to source
-    {
-        const carry_res = cpu.Bcd.add(bcd, @bitCast(dst_ea.load(state)));
-        bcd = carry_res[0];
-        carry |= carry_res[1];
-    }
-    
-    // Add extend bit
-    {
-        const carry_res = cpu.Bcd.add(bcd, extend);
-        bcd = carry_res[0];
-        carry |= carry_res[1];
-    }
+    const lhs: cpu.Bcd = @bitCast(dst_ea.load(state));
+    const rhs: cpu.Bcd = @bitCast(src);
+    const res = cpu.Bcd.add(lhs, rhs, @intFromBool(state.regs.sr.x));
     
     // Save flags
-    state.regs.sr.c = carry == 1;
-    state.regs.sr.x = carry == 1;
-    const byte = @as(u8, @bitCast(bcd));
+    state.regs.sr.c = res[1];
+    state.regs.sr.x = res[1];
+    const byte = @as(u8, @bitCast(res[0]));
     if (byte != 0) state.regs.sr.z = false;
     
     // Store back to destination
