@@ -186,7 +186,6 @@ const instrs = .{
     //@import("m68k/b_xxx_imm.zig"),
     //@import("m68k/bitop_to_ccr.zig"),
     //@import("m68k/chk.zig"),
-    //@import("m68k/clr.zig"),
     //@import("m68k/cmp.zig"),
     //@import("m68k/cmpa.zig"),
     //@import("m68k/cmpi.zig"),
@@ -212,5 +211,5 @@ const instrs = .{
     //@import("m68k/shift_mem.zig"),
     //@import("m68k/mul.zig"),
     //@import("m68k/nbcd.zig"),
-    @import("m68k/neg.zig"),
+    @import("m68k/not_neg_clr.zig"),
 };

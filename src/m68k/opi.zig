@@ -58,10 +58,15 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
             dst.store(state, res);
         },
         .ori => {
-            
+            const res = imm | dst.load(state);
+            state.setLogicalFlags(args.size, res);
+            dst.store(state, res);
         },
         .subi => {
-            
+            // TODO:
+            const res = state.addWithFlags(args.size, imm, dst.load(state));
+            state.regs.sr.x = state.regs.sr.c;
+            dst.store(state, res);
         },
     }
 
