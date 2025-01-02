@@ -5,7 +5,9 @@ const cpu = @import("cpu/cpu.zig");
 pub const Encoding = packed struct {
     dst: enc.EffAddr,
     size: enc.Size,
-    pattern: enc.BitPattern(8, 0b0100_0100),
+    pattern: enc.BitPattern(2, 0b00),
+    no_extend: bool,
+    line: enc.BitPattern(5, 0b0100_0),
 };
 pub const Variant = packed struct {
     size: enc.Size,
@@ -40,12 +42,23 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
 
     // Set flags and store result
     const val: S = @bitCast(dst.load(state));
-    const res = @subWithOverflow(0, val);
+    const base: S = blk: {
+        if (instr.no_extend) {
+            break :blk 0;
+        } else {
+            break :blk if (state.regs.sr.x) -1 else 0;
+        }
+    };
+    const res = @subWithOverflow(base, val);
     state.regs.sr.c = res[0] != 0;
     state.regs.sr.x = state.regs.sr.c;
-    state.regs.sr.z = res[0] == 0;
     state.regs.sr.v = res[1] == 1;
     state.regs.sr.n = res[0] < 0;
+    if (instr.no_extend) {
+        state.regs.sr.z = res[0] == 0;
+    } else if (res[0] != 0) {
+        state.regs.sr.z = false;
+    }
     dst.store(state, @bitCast(res[0]));
     if (args.size == .long and dst == .data_reg) state.cycles += 2;
     state.ir = state.programFetch(enc.Size.word);
