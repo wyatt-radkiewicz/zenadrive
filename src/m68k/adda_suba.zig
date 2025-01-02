@@ -2,14 +2,19 @@ const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
+const Op = enum(u1) { suba, adda };
 pub const Encoding = packed struct {
     src: enc.EffAddr,
     pattern: enc.BitPattern(2, 0b11),
     size: u1,
     dst: u3,
-    line: enc.BitPattern(4, 0b1101),
+    line: enc.BitPattern(2, 0b01),
+    op: Op,
+    line_msb: enc.BitPattern(1, 1),
 };
-pub const Variant = packed struct {};
+pub const Variant = packed struct {
+    op: Op,
+};
 pub const Tester = struct {
     const expect = std.testing.expect;
     
@@ -27,7 +32,6 @@ pub fn match(comptime encoding: Encoding) bool {
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     const instr: Encoding = @bitCast(state.ir);
-    _ = args;
 
     // Compute source effective address and sign extend
     const src = get_src: {
@@ -48,7 +52,11 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     };
 
     // Set flags and store result
-    const res = src +% state.loadReg(.addr, enc.Size.long, instr.dst);
+    const addr = state.loadReg(.addr, enc.Size.long, instr.dst);
+    const res = switch (args.op) {
+        .adda => src +% addr,
+        .suba => src -% addr,
+    };
     state.storeReg(.addr, enc.Size.long, instr.dst, res);
 
     // Fetch next instruction

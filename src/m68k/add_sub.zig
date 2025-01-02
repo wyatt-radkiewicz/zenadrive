@@ -2,14 +2,18 @@ const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
+const Op = enum(u1) { sub, add };
 pub const Encoding = packed struct {
     ea: enc.EffAddr,
     size: enc.Size,
     dir: enc.OpDir,
     dn: u3,
-    line: enc.BitPattern(4, 0b1101),
+    line: enc.BitPattern(2, 0b01),
+    op: Op,
+    line_msb: enc.BitPattern(1, 1),
 };
 pub const Variant = packed struct {
+    op: Op,
     dir: enc.OpDir,
     size: enc.Size,
 };
@@ -29,14 +33,13 @@ pub const Tester = struct {
 pub fn match(comptime encoding: Encoding) bool {
     const mode = enc.AddrMode.fromEffAddr(encoding.ea).?;
     if (encoding.dir == .dn_ea_store_dn) {
-        if (encoding.size == .byte and mode == .addr_reg) return false;
+        return encoding.size != .byte or mode != .addr_reg;
     } else {
         return switch (mode) {
             .data_reg, .addr_reg, .imm, .pc_idx, .pc_disp => false,
-            else => true
+            else => true,
         };
     }
-    return true;
 }
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Compute effective addresses
@@ -46,10 +49,13 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Set flags and store result
     if (args.dir == .dn_ea_store_dn) {
         const dst = state.loadReg(.data, args.size, instr.dn);
-        const res = state.addWithFlags(args.size, ea.load(state), dst);
+        const res = switch (args.op) {
+            .add => state.addWithFlags(args.size, ea.load(state), dst),
+            .sub => state.subWithFlags(args.size, ea.load(state), dst),
+        };
         state.regs.sr.x = state.regs.sr.c;
         state.storeReg(.data, args.size, instr.dn, res);
-        
+
         // Add processing time
         if (args.size == .long) {
             state.cycles += switch (ea) {
@@ -59,10 +65,13 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
         }
     } else {
         const src = state.loadReg(.data, args.size, instr.dn);
-        const res = state.addWithFlags(args.size, ea.load(state), src);
+        const res = switch (args.op) {
+            .add => state.addWithFlags(args.size, ea.load(state), src),
+            .sub => state.subWithFlags(args.size, ea.load(state), src),
+        };
         ea.store(state, res);
     }
-    
+
     // Fetch next instruction
     state.ir = state.programFetch(enc.Size.word);
 }

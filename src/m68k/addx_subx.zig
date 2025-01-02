@@ -2,6 +2,7 @@ const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
+const Op = enum(u1) { addx, subx };
 pub const Encoding = packed struct {
     src: u3,
     rm: bool,
@@ -9,7 +10,9 @@ pub const Encoding = packed struct {
     size: enc.Size,
     pattern1: enc.BitPattern(1, 1),
     dst: u3,
-    line: enc.BitPattern(4, 0b1101),
+    line: enc.BitPattern(2, 0b01),
+    op: Op,
+    line_msb: enc.BitPattern(1, 1),
 };
 pub const Variant = packed struct {
     size: enc.Size,
@@ -17,7 +20,7 @@ pub const Variant = packed struct {
 
 pub const Tester = struct {
     const expect = std.testing.expect;
-    
+
     // 0:	d348           	addx.w -(a0),-(a1)  ; 18 cycles
     // 2:	d181           	addx.l d1,d0        ; 8 cycles
     pub const code = [_]u16{ 0xD348, 0xD181 };
@@ -38,14 +41,18 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     else
         enc.AddrMode.data_reg;
     const mode = addrmode.toEffAddr().m;
-    const src_ea = cpu.EffAddr(args.size).calc(state, .{ .m = mode, .xn = instr.src});
-    const dst_ea = cpu.EffAddr(args.size).calc(state, .{ .m = mode, .xn = instr.dst});
+    const src_ea = cpu.EffAddr(args.size).calc(state, .{ .m = mode, .xn = instr.src });
+    const dst_ea = cpu.EffAddr(args.size).calc(state, .{ .m = mode, .xn = instr.dst });
 
     // Set flags and store result
     const extend: args.size.getType(.unsigned) = @intFromBool(state.regs.sr.x);
-    const with_one = state.addWithFlags(args.size, extend, dst_ea.load(state));
+    const mathop = switch (instr.op) {
+        .addx => &cpu.State.addWithFlags,
+        .subx => &cpu.State.subWithFlags,
+    };
+    const with_one = mathop(state, args.size, extend, dst_ea.load(state));
     const sr = state.regs.sr;
-    const res = state.addWithFlags(args.size, src_ea.load(state), with_one);
+    const res = mathop(state, args.size, src_ea.load(state), with_one);
     state.regs.sr.c = state.regs.sr.c or sr.c;
     state.regs.sr.v = state.regs.sr.v or sr.v;
     if (res != 0) state.regs.sr.z = false;
@@ -60,7 +67,7 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
         .mem => state.cycles -= 2,
         else => state.cycles += if (args.size == .long) 4 else 0,
     }
-    
+
     // Fetch next instruction
     state.ir = state.programFetch(enc.Size.word);
 }
