@@ -180,7 +180,7 @@ const instrs = .{
     //@import("m68k/adda.zig"),
     //@import("m68k/addq.zig"),
     //@import("m68k/addx.zig"),
-    @import("m68k/and_or.zig"),
+    //@import("m68k/and_or.zig"),
     //@import("m68k/b_cc.zig"),
     //@import("m68k/b_xxx_reg.zig"),
     //@import("m68k/b_xxx_imm.zig"),
@@ -212,4 +212,5 @@ const instrs = .{
     //@import("m68k/mul.zig"),
     //@import("m68k/nbcd.zig"),
     //@import("m68k/not_neg_clr.zig"),
+    @import("m68k/pea.zig"),
 };
