@@ -28,7 +28,22 @@ pub const State = struct {
         self.pending_exception = null;
         self.handleException(exception);
     }
+    
+    // Returns whether or not the cpu has privilages, and executes trap if not
+    pub fn checkPrivlege(self: *State, need_privileges: bool) bool {
+        if (!need_privileges or self.regs.sr.s) return true;
+        self.handleException(@intFromEnum(Vector.privilege_violation));
+        return false;
+    }
 
+    pub fn trapException(self: *State, vector: u4) void {
+        self.regs.sr.s = true;
+        self.pushVal(enc.Size.long, self.regs.pc);
+        self.pushVal(enc.Size.word, @bitCast(self.regs.sr));
+        self.regs.pc = self.rdBus(enc.Size.long, exception * 4);
+        self.ir = self.programFetch(enc.Size.word);
+    }
+    
     // Starts exception handler code for the exception
     pub fn handleException(self: *State, exception: u8) void {
         const sr_copy = self.regs.sr;
@@ -47,7 +62,7 @@ pub const State = struct {
             .illegal_instr => {
                 self.halted = true;
             },
-            .chk_instr, .zero_divide => |vec| {
+            .chk_instr, .zero_divide, .privilege_violation => |vec| {
                 self.pushVal(enc.Size.long, self.regs.pc -% 2);
                 self.pushVal(enc.Size.word, @bitCast(sr_copy));
                 self.regs.pc = self.rdBus(enc.Size.long, vec.getAddr());

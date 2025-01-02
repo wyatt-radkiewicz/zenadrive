@@ -213,5 +213,6 @@ const instrs = .{
     //@import("m68k/nbcd.zig"),
     //@import("m68k/not_neg_clr.zig"),
     //@import("m68k/pea.zig"),
-    @import("m68k/s_cc.zig"),
+    //@import("m68k/s_cc.zig"),
+    @import("m68k/swap.zig"),
 };

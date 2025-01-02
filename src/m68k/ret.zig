@@ -32,6 +32,7 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
             state.regs.sr = @bitCast(sr);
         },
         0b011 => {
+            if (!state.checkPrivlege(true)) return;
             state.regs.sr = @bitCast(state.popVal(enc.Size.word));
         },
         else => {},

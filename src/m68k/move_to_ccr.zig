@@ -4,7 +4,9 @@ const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
     src: enc.EffAddr,
-    pattern: enc.BitPattern(10, 0b0100010011),
+    pattern2: enc.BitPattern(3, 0b011),
+    supervisor: bool,
+    pattern1: enc.BitPattern(6, 0b010001),
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
@@ -29,9 +31,14 @@ pub fn match(comptime encoding: Encoding) bool {
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     const instr: Encoding = @bitCast(state.ir);
+    if (!state.checkPrivlege(instr.supervisor)) return;
     const src = cpu.EffAddr(enc.Size.word).calc(state, instr.src).load(state);
-    const sr: u16 = @bitCast(state.regs.sr);
-    state.regs.sr = @bitCast(sr & 0xFF00 | src & 0x00FF);
+    if (instr.supervisor) {
+        state.regs.sr = @bitCast(src);
+    } else {
+        const sr: u16 = @bitCast(state.regs.sr);
+        state.regs.sr = @bitCast(sr & 0xFF00 | src & 0x00FF);
+    }
     state.cycles += 8;
     state.ir = state.programFetch(enc.Size.word);
 }
