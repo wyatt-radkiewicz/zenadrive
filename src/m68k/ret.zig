@@ -4,7 +4,7 @@ const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
     pattern: u3,
-    line: enc.BitPattern(16, 0b0100_1110_0111_0),
+    line: enc.BitPattern(13, 0b0100_1110_0111_0),
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {

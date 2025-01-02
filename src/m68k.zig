@@ -125,7 +125,7 @@ fn validateEncoding(comptime instr: type, comptime word: u16) bool {
 // illegal instruction exception handler.
 const decode_lut: [0x10000]u8 = compute_lut: {
     var lut = [1]u8{0xFF} ** 0x10000;
-    @setEvalBranchQuota(lut.len * 512);
+    @setEvalBranchQuota(lut.len * 256 * 16);
 
     var iter = InstrIterator.init();
     while (true) {
@@ -133,6 +133,7 @@ const decode_lut: [0x10000]u8 = compute_lut: {
         if (instr == void) break;
 
         if (@bitSizeOf(instr.Encoding) != 16) {
+            @compileLog(instr);
             @compileError("instruction encodings must be 16 bits!");
         }
         for (0..lut.len) |i| {
@@ -175,44 +176,54 @@ test "Instructions" {
 
 // List of cpu instructions (as types of structs)
 const instrs = .{
-    //@import("m68k/abcd.zig"),
-    //@import("m68k/add.zig"),
-    //@import("m68k/adda.zig"),
-    //@import("m68k/addq.zig"),
-    //@import("m68k/addx.zig"),
-    //@import("m68k/and_or.zig"),
-    //@import("m68k/b_cc.zig"),
-    //@import("m68k/b_xxx_reg.zig"),
-    //@import("m68k/b_xxx_imm.zig"),
-    //@import("m68k/bitop_to_ccr.zig"),
-    //@import("m68k/chk.zig"),
-    //@import("m68k/cmp.zig"),
-    //@import("m68k/cmpa.zig"),
-    //@import("m68k/cmpi.zig"),
-    //@import("m68k/cmpm.zig"),
-    //@import("m68k/db_cc.zig"),
-    //@import("m68k/div.zig"),
-    //@import("m68k/eor.zig"),
-    //@import("m68k/exg.zig"),
-    //@import("m68k/ext.zig"),
-    //@import("m68k/jmp.zig"),
-    //@import("m68k/jsr.zig"),
-    //@import("m68k/lea.zig"),
-    //@import("m68k/link.zig"),
-    //@import("m68k/move.zig"),
-    //@import("m68k/move_to_ccr.zig"),
-    //@import("m68k/move_from_sr.zig"),
-    //@import("m68k/movea.zig"),
-    //@import("m68k/movem.zig"),
-    //@import("m68k/movep.zig"),
-    //@import("m68k/moveq.zig"),
-    //@import("m68k/opi.zig"),
-    //@import("m68k/shift_reg.zig"),
-    //@import("m68k/shift_mem.zig"),
-    //@import("m68k/mul.zig"),
-    //@import("m68k/nbcd.zig"),
-    //@import("m68k/not_neg_clr.zig"),
-    //@import("m68k/pea.zig"),
-    //@import("m68k/s_cc.zig"),
+    @import("m68k/abcd_sbcd.zig"),
+    @import("m68k/add_sub.zig"),
+    @import("m68k/adda_suba.zig"),
+    @import("m68k/addq_subq.zig"),
+    @import("m68k/addx_subx.zig"),
+    @import("m68k/and_or.zig"),
+    @import("m68k/b_cc.zig"),
+    @import("m68k/b_xxx_imm.zig"),
+    @import("m68k/b_xxx_reg.zig"),
+    @import("m68k/bitop_to_ccr.zig"),
+    @import("m68k/chk.zig"),
+    @import("m68k/cmp.zig"),
+    @import("m68k/cmpa.zig"),
+    @import("m68k/cmpi.zig"),
+    @import("m68k/cmpm.zig"),
+    @import("m68k/db_cc.zig"),
+    @import("m68k/div.zig"),
+    @import("m68k/eor.zig"),
+    @import("m68k/exg.zig"),
+    @import("m68k/ext.zig"),
+    @import("m68k/jmp.zig"),
+    @import("m68k/jsr.zig"),
+    @import("m68k/lea.zig"),
+    @import("m68k/link.zig"),
+    @import("m68k/move.zig"),
+    @import("m68k/move_from_sr.zig"),
+    @import("m68k/move_to_ccr.zig"),
+    @import("m68k/move_usp.zig"),
+    @import("m68k/movea.zig"),
+    @import("m68k/movem.zig"),
+    @import("m68k/movep.zig"),
+    @import("m68k/moveq.zig"),
+    @import("m68k/mul.zig"),
+    @import("m68k/nbcd.zig"),
+    @import("m68k/nop.zig"),
+    @import("m68k/not_neg_clr.zig"),
+    @import("m68k/opi.zig"),
+    @import("m68k/pea.zig"),
+    @import("m68k/reset.zig"),
+    @import("m68k/ret.zig"),
+    @import("m68k/s_cc.zig"),
+    @import("m68k/shift_mem.zig"),
+    @import("m68k/shift_reg.zig"),
+    @import("m68k/stop.zig"),
     @import("m68k/swap.zig"),
+    @import("m68k/tas.zig"),
+    @import("m68k/trap.zig"),
+    @import("m68k/trapv.zig"),
+    @import("m68k/tst.zig"),
+    @import("m68k/unlk.zig"),
 };

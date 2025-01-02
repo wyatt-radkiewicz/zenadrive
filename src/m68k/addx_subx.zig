@@ -46,13 +46,12 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
 
     // Set flags and store result
     const extend: args.size.getType(.unsigned) = @intFromBool(state.regs.sr.x);
-    const mathop = switch (instr.op) {
-        .addx => &cpu.State.addWithFlags,
-        .subx => &cpu.State.subWithFlags,
-    };
-    const with_one = mathop(state, args.size, extend, dst_ea.load(state));
+    const with_one = state.addWithFlags(args.size, extend, src_ea.load(state));
     const sr = state.regs.sr;
-    const res = mathop(state, args.size, src_ea.load(state), with_one);
+    const res = switch (instr.op) {
+        .addx => state.addWithFlags(args.size, with_one, src_ea.load(state)),
+        .subx => state.subWithFlags(args.size, with_one, src_ea.load(state)),
+    };
     state.regs.sr.c = state.regs.sr.c or sr.c;
     state.regs.sr.v = state.regs.sr.v or sr.v;
     if (res != 0) state.regs.sr.z = false;

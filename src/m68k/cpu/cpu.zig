@@ -40,6 +40,7 @@ pub const State = struct {
         self.regs.sr.s = true;
         self.pushVal(enc.Size.long, self.regs.pc);
         self.pushVal(enc.Size.word, @bitCast(self.regs.sr));
+        const exception = @intFromEnum(Vector.trap_vectors) + vector;
         self.regs.pc = self.rdBus(enc.Size.long, exception * 4);
         self.ir = self.programFetch(enc.Size.word);
     }

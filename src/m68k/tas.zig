@@ -32,6 +32,6 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     state.regs.sr.v = false;
     state.setNegAndZeroFlags(enc.Size.byte, byte);
     state.cycles += 2;
-    dst.store(byte | 0x80);
+    dst.store(state, byte | 0x80);
     state.ir = state.programFetch(enc.Size.word);
 }

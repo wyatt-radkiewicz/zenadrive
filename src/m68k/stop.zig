@@ -23,6 +23,6 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     if (!state.checkPrivlege(true)) return;
     state.ir = state.programFetch(enc.Size.word);
-    state.regs.sr = @bitCast(state.rdBus(enc.Size.word));
+    state.regs.sr = @bitCast(state.programFetch(enc.Size.word));
     state.halted = true;
 }
