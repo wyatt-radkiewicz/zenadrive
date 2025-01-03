@@ -29,6 +29,10 @@ pub const Tester = struct {
     }
 };
 
+pub fn getImmLen(encoding: Encoding) usize {
+    _ = encoding;
+    return 0;
+}
 pub fn match(comptime encoding: Encoding) bool {
     if (encoding.dir == .dn_ea_store_dn) {
         return enc.AddrMode.fromEffAddr(encoding.ea).? != .addr_reg;

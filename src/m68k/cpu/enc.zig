@@ -74,11 +74,14 @@ pub const AddrMode = enum {
         }
     }
 
-    pub fn getAdditionalSize(self: AddrMode) ?ImmSize {
+    pub fn getAdditionalSize(self: AddrMode, opsize: Size) usize {
         return switch (self) {
             .addr_idx, .pc_idx, .pc_disp => .word,
-            .imm => .dynamic,
-            else => null,
+            .imm => switch (opsize) {
+                .byte, .word => 2,
+                .long => 4,
+            },
+            else => .none,
         };
     }
 };
@@ -103,6 +106,7 @@ pub const EffAddr = packed struct {
     }
 };
 
+// Only used in move/movea instructions
 pub const MoveEffAddr = packed struct {
     m: u3,
     xn: u3,
@@ -180,14 +184,6 @@ pub const Cond = enum(u4) {
     less_than,
     greater_than,
     less_or_equal,
-};
-
-// Used to tell dissasembler how much immediate data the instruction uses
-pub const ImmSize = enum {
-    byte,
-    word,
-    long,
-    dynamic,
 };
 
 pub fn BitPattern(comptime len: u16, pattern_bits: comptime_int) type {

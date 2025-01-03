@@ -21,6 +21,10 @@ pub const Tester = struct {
     }
 };
 
+pub fn getImmLen(encoding: Encoding) usize {
+    _ = encoding;
+    return 0;
+}
 pub fn match(comptime encoding: Encoding) bool {
     return switch (enc.AddrMode.fromEffAddr(encoding.dst.toEffAddr()).?) {
         .addr_reg, .imm, .pc_idx, .pc_disp => false,
