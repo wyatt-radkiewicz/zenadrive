@@ -6,30 +6,6 @@ pub const cpu = @import("m68k/cpu/cpu.zig");
 // Run one instruction (and potentially handle exceptions (but not run their code))
 pub fn runInstr(state: *cpu.State) void {
     if (state.halted) return;
-    @setEvalBranchQuota(256 * 256);
-
-    // Generate table of lut bytes to instruction functions
-    const LutEntry = struct {
-        instr: type,
-        variant: comptime_int,
-    };
-    const lut_to_instr: [0x100]?LutEntry = comptime blk: {
-        var lut = [1]?LutEntry{null} ** 0x100;
-        var iter = InstrIterator.init();
-        var instr = iter.next();
-        while (instr != void) : (instr = iter.next()) {
-            const Variant = instr.Variant;
-            for (0..1 << @bitSizeOf(Variant)) |permutation| {
-                // See if we can even encode this
-                if (!validatePackedStruct(Variant, permutation)) continue;
-                lut[iter.base + permutation] = .{
-                    .instr = instr,
-                    .variant = permutation,
-                };
-            }
-        }
-        break :blk lut;
-    };
 
     // Handle exceptions generated since last instruction
     state.tryPendingException();
@@ -151,12 +127,15 @@ fn setEncodingPermutations(
     }
 }
 
+// This byte signifies an instruction word is invalid
+pub const invalid_instr_word: u8 = 0xFF;
+
 // Cpu instruction decode lookup table
 // If you index the table by the first word of an instruction, it gives you the correct run function
 // to run for the instruction. Index 0xFF is for invalid instruction encodings and should run the
 // illegal instruction exception handler.
 const decode_lut: [0x10000]u8 = compute_lut: {
-    var lut = [1]u8{0xFF} ** 0x10000;
+    var lut = [1]u8{invalid_instr_word} ** 0x10000;
     @setEvalBranchQuota(lut.len * 256 * 16);
 
     var iter = InstrIterator.init();
@@ -173,6 +152,33 @@ const decode_lut: [0x10000]u8 = compute_lut: {
         setEncodingPermutations(&lut, iter.base, instr, std.meta.fields(instr.Encoding), 0);
     }
     break :compute_lut lut;
+};
+
+// Generate table of lut bytes to instruction functions
+const LutEntry = struct {
+    instr: type,            // Type related to this template instance
+    variant: comptime_int,  // Variant info specific to this template instance
+};
+
+// Generate a table to quickly go from decode lut byte to actual instruction type and variant info
+const lut_to_instr: [0x100]?LutEntry = gen: {
+    @setEvalBranchQuota(256 * 256);
+    
+    var lut = [1]?LutEntry{null} ** 0x100;
+    var iter = InstrIterator.init();
+    var instr = iter.next();
+    while (instr != void) : (instr = iter.next()) {
+        const Variant = instr.Variant;
+        for (0..1 << @bitSizeOf(Variant)) |permutation| {
+            // See if we can even encode this
+            if (!validatePackedStruct(Variant, permutation)) continue;
+            lut[iter.base + permutation] = .{
+                .instr = instr,
+                .variant = permutation,
+            };
+        }
+    }
+    break :gen lut;
 };
 
 test "Instructions" {

@@ -23,8 +23,7 @@ pub const Tester = struct {
 };
 
 pub fn getImmLen(encoding: Encoding) usize {
-    _ = encoding;
-    return 0;
+    return enc.AddrMode.fromEffAddr(encoding.ea).?.getAdditionalSize(enc.Size.word);
 }
 pub fn match(comptime encoding: Encoding) bool {
     return enc.AddrMode.fromEffAddr(encoding.ea).? != .addr_reg;

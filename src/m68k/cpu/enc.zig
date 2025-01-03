@@ -23,6 +23,7 @@ pub const Size = enum(u2) {
     }
 };
 
+// Used in move instructions
 pub const MoveSize = enum(u2) {
     byte = 1,
     long,
@@ -76,12 +77,12 @@ pub const AddrMode = enum {
 
     pub fn getAdditionalSize(self: AddrMode, opsize: Size) usize {
         return switch (self) {
-            .addr_idx, .pc_idx, .pc_disp => .word,
+            .addr_idx, .pc_idx, .pc_disp => 1,
             .imm => switch (opsize) {
-                .byte, .word => 2,
-                .long => 4,
+                .byte, .word => 1,
+                .long => 2,
             },
-            else => .none,
+            else => 0,
         };
     }
 };
@@ -103,24 +104,6 @@ pub const EffAddr = packed struct {
     pub fn match(bits: u6) bool {
         const self: EffAddr = @bitCast(bits);
         return AddrMode.fromEffAddr(self) != null;
-    }
-};
-
-// Only used in move/movea instructions
-pub const MoveEffAddr = packed struct {
-    m: u3,
-    xn: u3,
-
-    pub fn match(bits: u6) bool {
-        const self: MoveEffAddr = @bitCast(bits);
-        return AddrMode.fromEffAddr(self.toEffAddr()) != null;
-    }
-
-    pub fn toEffAddr(self: MoveEffAddr) EffAddr {
-        return .{
-            .m = self.m,
-            .xn = self.xn,
-        };
     }
 };
 

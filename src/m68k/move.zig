@@ -2,9 +2,26 @@ const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
 
+// Move specific versions of effective address encodings
+pub const EffAddr = packed struct {
+    m: u3,
+    xn: u3,
+
+    pub fn match(bits: u6) bool {
+        const self: EffAddr = @bitCast(bits);
+        return enc.AddrMode.fromEffAddr(self.toEffAddr()) != null;
+    }
+
+    pub fn toEffAddr(self: EffAddr) enc.EffAddr {
+        return .{
+            .m = self.m,
+            .xn = self.xn,
+        };
+    }
+};
 pub const Encoding = packed struct {
     src: enc.EffAddr,
-    dst: enc.MoveEffAddr,
+    dst: EffAddr,
     size: enc.MoveSize,
     line: enc.BitPattern(2, 0),
 };
@@ -22,8 +39,10 @@ pub const Tester = struct {
 };
 
 pub fn getImmLen(encoding: Encoding) usize {
-    _ = encoding;
-    return 0;
+    const size = encoding.size.toSize();
+    const dst = encoding.dst.toEffAddr();
+    return enc.AddrMode.fromEffAddr(encoding.src).?.getAdditionalSize(size)
+        + enc.AddrMode.fromEffAddr(dst).?.getAdditionalSize(size);
 }
 pub fn match(comptime encoding: Encoding) bool {
     return switch (enc.AddrMode.fromEffAddr(encoding.dst.toEffAddr()).?) {
