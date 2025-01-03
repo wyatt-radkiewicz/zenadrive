@@ -164,14 +164,15 @@ pub const Cond = enum(u4) {
     less_or_equal,
 };
 
-pub fn BitPattern(comptime len: u16, bits: comptime_int) type {
+pub fn BitPattern(comptime len: u16, pattern_bits: comptime_int) type {
     const Int = std.meta.Int(.unsigned, len);
     
     return packed struct {
-        pattern: Int,
+        bits: Int,
         
-        pub fn match(pattern: Int) bool {
-            return bits == pattern;
+        pub const pattern = pattern_bits;
+        pub fn match(bits: Int) bool {
+            return bits == pattern_bits;
         }
     };
 }

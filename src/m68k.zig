@@ -81,15 +81,6 @@ fn AsInt(comptime T: type) type {
     return std.meta.Int(.unsigned, @bitSizeOf(T));
 }
 
-// Create the arguments from the encoding
-fn encodingToVariant(comptime instr: type, comptime encoding: anytype) instr.Variant {
-    var variant: instr.Variant = undefined;
-    for (std.meta.fields(instr.Variant)) |field| {
-        @field(variant, field.name) = @field(encoding, field.name);
-    }
-    return variant;
-}
-
 // Makes sure that the packed struct can be represented by bits
 fn validatePackedStruct(comptime T: type, bits: comptime_int) bool {
     var idx = 0;
@@ -106,17 +97,59 @@ fn validatePackedStruct(comptime T: type, bits: comptime_int) bool {
     return true;
 }
 
-// Make sure encoding is valid
-fn validateEncoding(comptime instr: type, comptime word: u16) bool {
-    const Encoding = instr.Encoding;
+// Create the arguments from the encoding
+fn encodingToVariant(comptime instr: type, comptime encoding: anytype) instr.Variant {
+    var variant: instr.Variant = undefined;
+    for (std.meta.fields(instr.Variant)) |field| {
+        @field(variant, field.name) = @field(encoding, field.name);
+    }
+    return variant;
+}
 
-    // Validate encoding layout with word to make sure enums and other types cast over correctly
-    if (!validatePackedStruct(Encoding, word)) return false;
+fn setEncodingPermutations(
+    lut: *[0x10000]u8,
+    base: u8,
+    comptime instr: type,
+    comptime Fields: []const std.builtin.Type.StructField,
+    word: u16,
+) void {
+    // Base case
+    if (Fields.len == 0) {
+        if (!instr.match(@bitCast(word))) return;
+        const encoding: instr.Encoding = @bitCast(word);
+        const as_bits: AsInt(instr.Variant) = @bitCast(encodingToVariant(instr, encoding));
+        lut[word] = base + as_bits;
+        return;
+    }
 
-    // Now use per instruction matching since we know that the encoding can be represented (even if
-    // it doesn't make any sense at the moment).
-    const encoding: Encoding = @bitCast(word);
-    return instr.match(encoding);
+    const idx = Fields.len - 1;
+    const Field = Fields[idx].type;
+    const size = @bitSizeOf(Field);
+    const field_info = @typeInfo(Field);
+    const next_word = if (size == 16) 0 else word << size;
+
+    // It is a BitPattern?
+    if (field_info == .Struct and @hasDecl(Field, "pattern")) {
+        setEncodingPermutations(lut, base, instr, Fields[0..idx], next_word | Field.pattern);
+        return;
+    }
+
+    // It is a matchable struct?
+    if (switch (field_info) {
+        .Struct, .Enum, .Union => true,
+        else => false,
+    } and @hasDecl(Field, "match")) {
+        for (0..1 << size) |i| {
+            if (!Field.match(i)) continue;
+            setEncodingPermutations(lut, base, instr, Fields[0..idx], next_word | i);
+        }
+        return;
+    }
+
+    // It's not matchable so just do normal permutations
+    for (0..1 << size) |i| {
+        setEncodingPermutations(lut, base, instr, Fields[0..idx], next_word | i);
+    }
 }
 
 // Cpu instruction decode lookup table
@@ -136,13 +169,9 @@ const decode_lut: [0x10000]u8 = compute_lut: {
             @compileLog(instr);
             @compileError("instruction encodings must be 16 bits!");
         }
-        for (0..lut.len) |i| {
-            const word: u16 = i;
-            if (!validateEncoding(instr, word)) continue;
-            const encoding: instr.Encoding = @bitCast(word);
-            const as_bits: AsInt(instr.Variant) = @bitCast(encodingToVariant(instr, encoding));
-            lut[i] = iter.base + as_bits;
-        }
+
+        // Get all possible variations of the encoding and update them in the lookup table
+        setEncodingPermutations(&lut, iter.base, instr, std.meta.fields(instr.Encoding), 0);
     }
     break :compute_lut lut;
 };
