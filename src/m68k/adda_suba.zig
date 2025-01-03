@@ -1,6 +1,7 @@
 const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
+const fmt = @import("cpu/fmt.zig");
 
 const Op = enum(u1) { suba, adda };
 pub const Encoding = packed struct {
@@ -13,12 +14,27 @@ pub const Encoding = packed struct {
     line_msb: enc.BitPattern(1, 1),
 
     pub fn getLen(self: Encoding) usize {
-        return enc.AddrMode.fromEffAddr(self.src).?.getAdditionalSize(self.size) + 1;
+        const size = enc.Size.fromBit(self.size);
+        return enc.AddrMode.fromEffAddr(self.src).?.getAdditionalSize(size) + 1;
     }
 
     pub fn match(comptime self: Encoding) bool {
         _ = self;
         return true;
+    }
+};
+pub const Fmt = struct {
+    fmt: Encoding,
+    data: *fmt.State,
+    
+    pub fn format(self: Fmt, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        const size = enc.Size.fromBit(self.fmt.size);
+        try writer.print("{s}.{c} {},{}", .{
+            @tagName(self.fmt.op),
+            size.toChar(),
+            fmt.EffAddr.init(self.data, self.fmt.src, size),
+            fmt.Addr.from(self.fmt.dst),
+        });
     }
 };
 pub const Variant = packed struct {

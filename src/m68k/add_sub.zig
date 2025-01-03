@@ -46,7 +46,7 @@ pub const Fmt = struct {
                 src = .{ .m = 0, .xn = self.fmt.dn };
             },
         }
-        try writer.print("{s}.{c} {s},{s}", .{
+        try writer.print("{s}.{c} {},{}", .{
             @tagName(self.fmt.op),
             self.fmt.size.toChar(),
             fmt.EffAddr.init(self.data, src, self.fmt.size),

@@ -234,8 +234,8 @@ const lut_to_instr: [0x100]?LutEntry = gen: {
 const instrs = .{
     @import("m68k/abcd_sbcd.zig"),
     @import("m68k/add_sub.zig"),
-    //@import("m68k/adda_suba.zig"),
-    //@import("m68k/addq_subq.zig"),
+    @import("m68k/adda_suba.zig"),
+    @import("m68k/addq_subq.zig"),
     //@import("m68k/addx_subx.zig"),
     //@import("m68k/and_or.zig"),
     //@import("m68k/b_cc.zig"),
@@ -352,17 +352,50 @@ test "Instructions" {
     }
 }
 
-pub fn main() !void {
-    var impl = Bus{};
-    const intr = cpu.Bus.init(&impl);
-    impl.wr16(0, 0xCB00);
-    impl.wr16(2, 0x8B0F);
-    impl.wr16(4, 0xD154);
-    const writer = std.io.getStdOut().writer();
-    var addr: u24 = 0;
-    for (0..3) |_| {
-        const instr = FormatInstr.init(&intr, addr);
-        try writer.print("{}: {}\n", .{ addr, instr });
-        addr += @truncate(instr.lenBytes());
+const DisasmTester = struct {
+    code: [16]u16,
+    len: usize,
+    
+    pub fn init(code: []const u16) DisasmTester {
+        var self: DisasmTester = .{
+            .code = [1]u16{0} ** 16,
+            .len = code.len,
+        };
+        @memcpy(self.code[0..code.len], code);
+        return self;
     }
+    
+    pub fn check(self: DisasmTester, against: []const u8) !void {
+        // Set up code
+        var bus = Bus{};
+        for (0..self.len) |i| {
+            bus.wr16(@truncate(i * 2), self.code[i]);
+        }
+        const bus_interface = cpu.Bus.init(&bus);
+        
+        // Set up writer
+        var tmp: [0x100]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&tmp);
+        const writer = stream.writer();
+        
+        // See if they match
+        const formatter = FormatInstr.init(&bus_interface, 0);
+        if (formatter.lenBytes() != self.len * 2) {
+            return error.DisassemblyLengthMismatch;
+        }
+        try writer.print("{}", .{formatter});
+        if (!std.mem.eql(u8, stream.getWritten(), against)) {
+            std.log.err("{s}", .{stream.getWritten()});
+            return error.DisassemblyOutputMismatch;
+        }
+    }
+};
+
+test "Disassembly" {
+    try DisasmTester.init(&[_]u16{0xCB00}).check("sbcd.b d0,d5");
+    try DisasmTester.init(&[_]u16{0x8B0F}).check("abcd.b -(sp),-(a5)");
+    try DisasmTester.init(&[_]u16{0xD154}).check("add.w d0,(a4)");
+    try DisasmTester.init(&[_]u16{0xD0FC, 0xFFFF}).check("adda.w #-1,a0");
+    try DisasmTester.init(&[_]u16{0x5683}).check("addq.l #3,d3");
+    //try DisasmTester.init(&[_]u16{}).check("");
 }

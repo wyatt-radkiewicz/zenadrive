@@ -1,6 +1,7 @@
 const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
+const fmt = @import("cpu/fmt.zig");
 
 const Op = enum(u1) { addq, subq };
 pub const Encoding = packed struct {
@@ -25,7 +26,19 @@ pub const Variant = packed struct {
     size: enc.Size,
     op: Op,
 };
-
+pub const Fmt = struct {
+    fmt: Encoding,
+    data: *fmt.State,
+    
+    pub fn format(self: Fmt, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.print("{s}.{c} #{},{}", .{
+            @tagName(self.fmt.op),
+            self.fmt.size.toChar(),
+            self.fmt.data,
+            fmt.EffAddr.init(self.data, self.fmt.dst, self.fmt.size),
+        });
+    }
+};
 pub const Tester = struct {
     const expect = std.testing.expect;
 
