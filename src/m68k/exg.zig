@@ -6,7 +6,7 @@ const Mode = enum(u5) {
     data = 0b01000,
     addr = 0b01001,
     both = 0b10001,
-    
+
     pub fn match(bits: u5) bool {
         _ = std.meta.intToEnum(Mode, bits) catch return false;
         return true;
@@ -18,26 +18,28 @@ pub const Encoding = packed struct {
     pattern: enc.BitPattern(1, 1),
     x: u3,
     line: enc.BitPattern(4, 0b1100),
+
+    pub fn getLen(self: Encoding) usize {
+        _ = self;
+        return 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        _ = self;
+        return true;
+    }
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = std.testing.expect;
-    
+
     //    0:	c188           	exg %d0,%a0
-    pub const code = [_]u16{ 0xC188 };
+    pub const code = [_]u16{0xC188};
     pub fn validate(state: *const cpu.State) !void {
         try expect(state.cycles == 6);
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    _ = encoding;
-    return 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    _ = encoding;
-    return true;
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     const instr: Encoding = @bitCast(state.ir);

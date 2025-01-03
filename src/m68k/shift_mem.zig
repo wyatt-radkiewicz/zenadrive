@@ -8,13 +8,24 @@ pub const Encoding = packed struct {
     dir: enc.ShiftDir,
     op: enc.ShiftOp,
     pattern2: enc.BitPattern(5, 0b1110_0),
+
+    pub fn getLen(self: Encoding) usize {
+        return enc.AddrMode.fromEffAddr(self.dst).?.getAdditionalSize(enc.Size.byte) + 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        return switch (enc.AddrMode.fromEffAddr(self.dst).?) {
+            .data_reg, .addr_reg, .imm, .pc_idx, .pc_disp => false,
+            else => true,
+        };
+    }
 };
 pub const Variant = packed struct {
     op: enc.ShiftOp,
 };
 pub const Tester = struct {
     const expect = std.testing.expect;
-    
+
     // 0:	e1d0           	asl.w (a0) ; 12 cycles
     // 2:	e0d0           	asr.w (a0) ; 12 cycles
     pub const code = [_]u16{ 0xE1D0, 0xE0D0 };
@@ -23,15 +34,6 @@ pub const Tester = struct {
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    return enc.AddrMode.fromEffAddr(encoding.dst).?.getAdditionalSize(enc.Size.byte) + 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    return switch (enc.AddrMode.fromEffAddr(encoding.dst).?) {
-        .data_reg, .addr_reg, .imm, .pc_idx, .pc_disp => false,
-        else => true,
-    };
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Get encoding
     const instr: Encoding = @bitCast(state.ir);
@@ -48,7 +50,7 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
 
     // Micro-code for asD <ea> is sligtly different and doesn't cost any shift cycles
     state.cycles -= 2;
-    
+
     // Fetch next instruction
     state.ir = state.programFetch(enc.Size.word);
 }

@@ -11,6 +11,21 @@ pub const Encoding = packed struct {
     line: enc.BitPattern(2, 0b00),
     op: Op,
     line_msb: enc.BitPattern(1, 0b1),
+
+    pub fn getLen(self: Encoding) usize {
+        return enc.AddrMode.fromEffAddr(self.ea).?.getAdditionalSize(self.size) + 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        if (self.dir == .dn_ea_store_dn) {
+            return enc.AddrMode.fromEffAddr(self.ea).? != .addr_reg;
+        } else {
+            return switch (enc.AddrMode.fromEffAddr(self.ea).?) {
+                .data_reg, .addr_reg, .imm, .pc_idx, .pc_disp => false,
+                else => true,
+            };
+        }
+    }
 };
 pub const Variant = packed struct {
     size: enc.Size,
@@ -29,19 +44,6 @@ pub const Tester = struct {
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    return enc.AddrMode.fromEffAddr(encoding.ea).?.getAdditionalSize(encoding.size) + 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    if (encoding.dir == .dn_ea_store_dn) {
-        return enc.AddrMode.fromEffAddr(encoding.ea).? != .addr_reg;
-    } else {
-        return switch (enc.AddrMode.fromEffAddr(encoding.ea).?) {
-            .data_reg, .addr_reg, .imm, .pc_idx, .pc_disp => false,
-            else => true,
-        };
-    }
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Compute effective addresses
     const instr: Encoding = @bitCast(state.ir);

@@ -7,26 +7,28 @@ pub const Encoding = packed struct {
     pattern2: enc.BitPattern(3, 0),
     size: u1,
     pattern1: enc.BitPattern(9, 0b0100_1000_1),
+
+    pub fn getLen(self: Encoding) usize {
+        _ = self;
+        return 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        _ = self;
+        return true;
+    }
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = std.testing.expect;
 
     //    0:	4880           	extw %d0
-    pub const code = [_]u16{ 0x4880 };
+    pub const code = [_]u16{0x4880};
     pub fn validate(state: *const cpu.State) !void {
         try expect(state.cycles == 4);
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    _ = encoding;
-    return 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    _ = encoding;
-    return true;
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     const instr: Encoding = @bitCast(state.ir);
@@ -44,7 +46,7 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
             const res: u32 = @bitCast(@as(i32, @as(i16, @bitCast(reg))));
             state.setNegAndZeroFlags(enc.Size.long, res);
             state.storeReg(.data, .long, instr.reg, res);
-        }
+        },
     }
 
     // Fetch next instruction

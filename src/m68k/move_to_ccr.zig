@@ -7,6 +7,16 @@ pub const Encoding = packed struct {
     pattern2: enc.BitPattern(3, 0b011),
     supervisor: bool,
     pattern1: enc.BitPattern(6, 0b010001),
+
+    pub fn getLen(self: Encoding) usize {
+        const size = enc.Size.fromBit(@intFromBool(self.supervisor));
+        return enc.AddrMode.fromEffAddr(self.src).?.getAdditionalSize(size) + 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        _ = self;
+        return true;
+    }
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
@@ -24,14 +34,6 @@ pub const Tester = struct {
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    const size = enc.Size.fromBit(@intFromBool(encoding.supervisor));
-    return enc.AddrMode.fromEffAddr(encoding.src).?.getAdditionalSize(size) + 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    _ = encoding;
-    return true;
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     const instr: Encoding = @bitCast(state.ir);

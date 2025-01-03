@@ -5,27 +5,29 @@ const cpu = @import("cpu/cpu.zig");
 pub const Encoding = packed struct {
     ea: enc.EffAddr,
     pattern: enc.BitPattern(10, 0b0100101011),
+
+    pub fn getLen(self: Encoding) usize {
+        return enc.AddrMode.fromEffAddr(self.ea).?.getAdditionalSize(enc.Size.byte) + 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        const mode = enc.AddrMode.fromEffAddr(self.ea).?;
+        return switch (mode) {
+            .addr_reg, .imm, .pc_idx, .pc_disp => false,
+            else => true,
+        };
+    }
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = std.testing.expect;
 
-    pub const code = [_]u16{ };
+    pub const code = [_]u16{};
     pub fn validate(state: *const cpu.State) !void {
         _ = state;
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    return enc.AddrMode.fromEffAddr(encoding.ea).?.getAdditionalSize(enc.Size.byte) + 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    const mode = enc.AddrMode.fromEffAddr(encoding.ea).?;
-    return switch (mode) {
-        .addr_reg, .imm, .pc_idx, .pc_disp => false,
-        else => true,
-    };
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     const instr: Encoding = @bitCast(state.ir);

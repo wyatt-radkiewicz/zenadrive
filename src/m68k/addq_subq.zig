@@ -9,6 +9,17 @@ pub const Encoding = packed struct {
     op: Op,
     data: u3,
     line: enc.BitPattern(4, 0b0101),
+
+    pub fn getLen(self: Encoding) usize {
+        return enc.AddrMode.fromEffAddr(self.dst).?.getAdditionalSize(self.size) + 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        return switch (enc.AddrMode.fromEffAddr(self.dst).?) {
+            .imm, .pc_idx, .pc_disp => false,
+            else => true,
+        };
+    }
 };
 pub const Variant = packed struct {
     size: enc.Size,
@@ -26,15 +37,6 @@ pub const Tester = struct {
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    return enc.AddrMode.fromEffAddr(encoding.dst).?.getAdditionalSize(encoding.size) + 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    return switch (enc.AddrMode.fromEffAddr(encoding.dst).?) {
-        .imm, .pc_idx, .pc_disp => false,
-        else => true,
-    };
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Compute effective addresses
     const instr: Encoding = @bitCast(state.ir);

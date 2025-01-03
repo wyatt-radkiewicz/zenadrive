@@ -24,6 +24,19 @@ pub const Encoding = packed struct {
     dst: EffAddr,
     size: enc.MoveSize,
     line: enc.BitPattern(2, 0),
+
+    pub fn getLen(self: Encoding) usize {
+        const size = self.size.toSize();
+        const dst = self.dst.toEffAddr();
+        return 1 + enc.AddrMode.fromEffAddr(self.src).?.getAdditionalSize(size) + enc.AddrMode.fromEffAddr(dst).?.getAdditionalSize(size);
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        return switch (enc.AddrMode.fromEffAddr(self.dst.toEffAddr()).?) {
+            .addr_reg, .imm, .pc_idx, .pc_disp => false,
+            else => true,
+        };
+    }
 };
 pub const Variant = packed struct {
     size: enc.MoveSize,
@@ -38,18 +51,6 @@ pub const Tester = struct {
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    const size = encoding.size.toSize();
-    const dst = encoding.dst.toEffAddr();
-    return 1 + enc.AddrMode.fromEffAddr(encoding.src).?.getAdditionalSize(size)
-        + enc.AddrMode.fromEffAddr(dst).?.getAdditionalSize(size);
-}
-pub fn match(comptime encoding: Encoding) bool {
-    return switch (enc.AddrMode.fromEffAddr(encoding.dst.toEffAddr()).?) {
-        .addr_reg, .imm, .pc_idx, .pc_disp => false,
-        else => true,
-    };
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     const size = comptime args.size.toSize();
     const instr: Encoding = @bitCast(state.ir);

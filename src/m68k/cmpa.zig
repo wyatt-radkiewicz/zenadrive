@@ -8,26 +8,28 @@ pub const Encoding = packed struct {
     size: u1,
     lhs: u3,
     line: enc.BitPattern(4, 0b1011),
+
+    pub fn getLen(self: Encoding) usize {
+        const size = enc.Size.fromBit(self.size);
+        return enc.AddrMode.fromEffAddr(self.rhs).?.getAdditionalSize(size) + 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        _ = self;
+        return true;
+    }
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = std.testing.expect;
-    
+
     // 0:	b0c0           	cmpaw %d0,%a0
-    pub const code = [_]u16{ 0xB0C0 };
+    pub const code = [_]u16{0xB0C0};
     pub fn validate(state: *const cpu.State) !void {
         try expect(state.cycles == 6);
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    const size = enc.Size.fromBit(encoding.size);
-    return enc.AddrMode.fromEffAddr(encoding.rhs).?.getAdditionalSize(size) + 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    _ = encoding;
-    return true;
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     const instr: Encoding = @bitCast(state.ir);

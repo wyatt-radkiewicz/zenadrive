@@ -13,6 +13,16 @@ pub const Encoding = packed struct {
     line: enc.BitPattern(2, 0b01),
     op: Op,
     line_msb: enc.BitPattern(1, 1),
+
+    pub fn getLen(self: Encoding) usize {
+        _ = self;
+        return 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        _ = self;
+        return true;
+    }
 };
 pub const Variant = packed struct {
     size: enc.Size,
@@ -29,14 +39,6 @@ pub const Tester = struct {
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    _ = encoding;
-    return 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    _ = encoding;
-    return true;
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     // Compute effective addresses
     const instr: Encoding = @bitCast(state.ir);

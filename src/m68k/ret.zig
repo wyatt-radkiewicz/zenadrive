@@ -5,27 +5,29 @@ const cpu = @import("cpu/cpu.zig");
 pub const Encoding = packed struct {
     pattern: u3,
     line: enc.BitPattern(13, 0b0100_1110_0111_0),
+
+    pub fn getLen(self: Encoding) usize {
+        _ = self;
+        return 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        return switch (self.pattern) {
+            0b011, 0b101, 0b111 => true,
+            else => false,
+        };
+    }
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = std.testing.expect;
 
-    pub const code = [_]u16{ };
+    pub const code = [_]u16{};
     pub fn validate(state: *const cpu.State) !void {
         _ = state;
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    _ = encoding;
-    return 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    return switch (encoding.pattern) {
-        0b011, 0b101, 0b111 => true,
-        else => false,
-    };
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     const instr: Encoding = @bitCast(state.ir);

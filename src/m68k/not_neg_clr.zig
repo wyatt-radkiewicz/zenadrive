@@ -14,6 +14,17 @@ pub const Encoding = packed struct {
     pattern: enc.BitPattern(1, 0),
     op: Op,
     line: enc.BitPattern(5, 0b0100_0),
+
+    pub fn getLen(self: Encoding) usize {
+        return enc.AddrMode.fromEffAddr(self.dst).?.getAdditionalSize(self.size) + 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        return switch (enc.AddrMode.fromEffAddr(self.dst).?) {
+            .addr_reg, .imm, .pc_idx, .pc_disp => false,
+            else => true,
+        };
+    }
 };
 pub const Variant = packed struct {
     op: Op,
@@ -36,15 +47,6 @@ pub const Tester = struct {
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    return enc.AddrMode.fromEffAddr(encoding.dst).?.getAdditionalSize(encoding.size) + 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    return switch (enc.AddrMode.fromEffAddr(encoding.dst).?) {
-        .addr_reg, .imm, .pc_idx, .pc_disp => false,
-        else => true,
-    };
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     const instr: Encoding = @bitCast(state.ir);
     const dst = cpu.EffAddr(args.size).calc(state, instr.dst);
@@ -88,7 +90,7 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
             dst.store(state, res);
         },
     }
-    
+
     // Set flags and store result
     if (args.size == .long and dst == .data_reg) state.cycles += 2;
     state.ir = state.programFetch(enc.Size.word);

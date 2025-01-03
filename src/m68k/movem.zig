@@ -12,6 +12,20 @@ pub const Encoding = packed struct {
     pattern: enc.BitPattern(3, 0b001),
     dir: Dir,
     line: enc.BitPattern(5, 0b01001),
+
+    pub fn getLen(self: Encoding) usize {
+        const size = enc.Size.fromBit(self.size);
+        return enc.AddrMode.fromEffAddr(self.ea).?.getAdditionalSize(size) + 2;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        return switch (enc.AddrMode.fromEffAddr(self.ea).?) {
+            .data_reg, .addr_reg, .imm => false,
+            .addr_postinc, .pc_idx, .pc_disp => self.dir == .reg_to_mem,
+            .addr_predec => self.dir == .mem_to_reg,
+            else => true,
+        };
+    }
 };
 pub const Variant = packed struct {
     size: u1,
@@ -22,22 +36,10 @@ pub const Tester = struct {
     //    0:	4890 000f      	movemw %d0-%d3,%a0@
     pub const code = [_]u16{ 0x4890, 0x000F };
     pub fn validate(state: *const cpu.State) !void {
-        try expect(state.cycles == 8+4*4);
+        try expect(state.cycles == 8 + 4 * 4);
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    const size = enc.Size.fromBit(encoding.size);
-    return enc.AddrMode.fromEffAddr(encoding.ea).?.getAdditionalSize(size) + 2;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    return switch (enc.AddrMode.fromEffAddr(encoding.ea).?) {
-        .data_reg, .addr_reg, .imm => false,
-        .addr_postinc, .pc_idx, .pc_disp => encoding.dir == .reg_to_mem,
-        .addr_predec => encoding.dir == .mem_to_reg,
-        else => true,
-    };
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     const size = comptime enc.Size.fromBit(args.size);
     const mask = state.programFetch(enc.Size.word);
@@ -91,7 +93,7 @@ const Iter = struct {
     rev: bool,
     idx: u16,
     stopped: bool,
-    
+
     fn init(comptime size: enc.Size, rev: bool, start: u32, mask: u16) Iter {
         const bytes = @sizeOf(size.getType(.unsigned));
         return .{
@@ -103,7 +105,7 @@ const Iter = struct {
             .stopped = false,
         };
     }
-    
+
     fn next(self: *Iter) ?struct { u32, u4 } {
         const idx = self.idx;
         while (self.idx < 16 and !self.maskAt(@truncate(self.idx))) {
@@ -121,7 +123,7 @@ const Iter = struct {
         self.addr +%= @bitCast(if (self.rev) -self.bytes else self.bytes);
         return .{ addr, @truncate(idx) };
     }
-    
+
     fn maskAt(self: *Iter, idx: u4) bool {
         return self.mask & @as(u16, 1) << idx != 0;
     }

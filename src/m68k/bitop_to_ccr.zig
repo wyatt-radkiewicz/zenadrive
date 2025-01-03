@@ -8,11 +8,23 @@ pub const Encoding = packed struct {
     pattern1: enc.BitPattern(2, 0),
     op: enc.ImmOp,
     line: enc.BitPattern(4, 0b0000),
+
+    pub fn getLen(self: Encoding) usize {
+        const size = if (self.supervisor) enc.Size.word else enc.Size.byte;
+        return enc.AddrMode.fromEffAddr(self.dst).?.getAdditionalSize(size) + 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        return switch (self.op) {
+            .andi, .eori, .ori => true,
+            else => false,
+        };
+    }
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = std.testing.expect;
-    
+
     // 0:	023c 00f0      	andi.b #-16,ccr
     pub const code = [_]u16{ 0x023C, 0x00F0 };
     pub fn validate(state: *const cpu.State) !void {
@@ -20,21 +32,11 @@ pub const Tester = struct {
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    const size = if (encoding.supervisor) enc.Size.word else enc.Size.byte;
-    return enc.AddrMode.fromEffAddr(encoding.dst).?.getAdditionalSize(size) + 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    return switch (encoding.op) {
-        .andi, .eori, .ori => true,
-        else => false,
-    };
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     const instr: Encoding = @bitCast(state.ir);
     if (!state.checkPrivlege(instr.supervisor)) return;
-    
+
     // Compute effective addresses
     const imm = state.programFetch(enc.Size.word);
 
@@ -54,7 +56,7 @@ pub fn run(state: *cpu.State, comptime args: Variant) void {
 
     // Add processing time
     state.cycles += 12;
-    
+
     // Fetch next instruction
     state.ir = state.programFetch(enc.Size.word);
 }

@@ -5,11 +5,22 @@ const cpu = @import("cpu/cpu.zig");
 pub const Encoding = packed struct {
     dst: enc.EffAddr,
     pattern: enc.BitPattern(10, 0b0100_1000_00),
+
+    pub fn getLen(self: Encoding) usize {
+        return enc.AddrMode.fromEffAddr(self.dst).?.getAdditionalSize(enc.Size.byte) + 1;
+    }
+
+    pub fn match(comptime self: Encoding) bool {
+        return switch (enc.AddrMode.fromEffAddr(self.dst).?) {
+            .addr_reg, .imm, .pc_idx, .pc_disp => false,
+            else => true,
+        };
+    }
 };
 pub const Variant = packed struct {};
 pub const Tester = struct {
     const expect = std.testing.expect;
-    
+
     // 0:	7213           	moveq #19,%d1  ; 4 cycles
     // 2:	4801           	nbcd %d1       ; 6 cycles
     pub const code = [_]u16{ 0x7213, 0x4801 };
@@ -19,15 +30,6 @@ pub const Tester = struct {
     }
 };
 
-pub fn getLen(encoding: Encoding) usize {
-    return enc.AddrMode.fromEffAddr(encoding.dst).?.getAdditionalSize(enc.Size.byte) + 1;
-}
-pub fn match(comptime encoding: Encoding) bool {
-    return switch (enc.AddrMode.fromEffAddr(encoding.dst).?) {
-        .addr_reg, .imm, .pc_idx, .pc_disp => false,
-        else => true,
-    };
-}
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     _ = args;
     const instr: Encoding = @bitCast(state.ir);

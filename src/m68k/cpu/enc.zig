@@ -21,6 +21,14 @@ pub const Size = enum(u2) {
             .long => std.meta.Int(signedness, 32),
         };
     }
+
+    pub fn toChar(self: Size) u8 {
+        return switch (self) {
+            .byte => 'b',
+            .word => 'w',
+            .long => 'l',
+        };
+    }
 };
 
 // Used in move instructions

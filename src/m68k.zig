@@ -28,8 +28,8 @@ pub fn instrLen(first_word: u16) usize {
     switch (decode_lut[first_word]) {
         inline else => |lut_byte| {
             if (lut_to_instr[lut_byte]) |info| {
-                if (info.instr.match(@bitCast(first_word))) {
-                    return info.instr.getLen(@bitCast(first_word));
+                if (info.instr.Encoding.match(@bitCast(first_word))) {
+                    return info.instr.Encoding.getLen(@bitCast(first_word));
                 } else {
                     return 0;
                 }
@@ -107,7 +107,7 @@ fn setEncodingPermutations(
 ) void {
     // Base case
     if (Fields.len == 0) {
-        if (!instr.match(@bitCast(word))) return;
+        if (!instr.Encoding.match(@bitCast(word))) return;
         const encoding: instr.Encoding = @bitCast(word);
         const as_bits: AsInt(instr.Variant) = @bitCast(encodingToVariant(instr, encoding));
         lut[word] = base + as_bits;
