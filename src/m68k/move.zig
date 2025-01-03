@@ -4,8 +4,7 @@ const cpu = @import("cpu/cpu.zig");
 
 pub const Encoding = packed struct {
     src: enc.EffAddr,
-    dst_m: u3,
-    dst_xn: u3,
+    dst: enc.MoveEffAddr,
     size: enc.MoveSize,
     line: enc.BitPattern(2, 0),
 };
@@ -23,9 +22,7 @@ pub const Tester = struct {
 };
 
 pub fn match(comptime encoding: Encoding) bool {
-    const mode = enc.AddrMode.fromEffAddr(.{ .m = encoding.dst_m, .xn = encoding.dst_xn }) orelse
-        return false;
-    return switch (mode) {
+    return switch (enc.AddrMode.fromEffAddr(encoding.dst.toEffAddr()).?) {
         .addr_reg, .imm, .pc_idx, .pc_disp => false,
         else => true,
     };
@@ -33,7 +30,7 @@ pub fn match(comptime encoding: Encoding) bool {
 pub fn run(state: *cpu.State, comptime args: Variant) void {
     const size = comptime args.size.toSize();
     const instr: Encoding = @bitCast(state.ir);
-    const dst = cpu.EffAddr(size).calc(state, .{ .m = instr.dst_m, .xn = instr.dst_xn });
+    const dst = cpu.EffAddr(size).calc(state, instr.dst.toEffAddr());
     const src = cpu.EffAddr(size).calc(state, instr.src).load(state);
     state.setNegAndZeroFlags(size, src);
     state.regs.sr.c = false;

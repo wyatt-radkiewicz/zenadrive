@@ -9,7 +9,7 @@ pub const Size = enum(u2) {
     pub fn match(bits: u2) bool {
         return bits != 0b11;
     }
-    
+
     pub fn fromBit(bit: u1) Size {
         return @enumFromInt(@as(u2, bit) + 1);
     }
@@ -21,24 +21,17 @@ pub const Size = enum(u2) {
             .long => std.meta.Int(signedness, 32),
         };
     }
-
-    pub fn extend(self: Size) Size {
-        return switch (self) {
-            .byte => .word,
-            .word, .long => .long,
-        };
-    }
 };
 
 pub const MoveSize = enum(u2) {
     byte = 1,
     long,
     word,
-    
+
     pub fn match(bits: u2) bool {
         return bits != 0b00;
     }
-    
+
     pub fn toSize(self: MoveSize) Size {
         return switch (self) {
             inline else => |size| std.meta.stringToEnum(Size, @tagName(size)).?,
@@ -80,6 +73,14 @@ pub const AddrMode = enum {
             return .{ .m = @truncate(as_int), .xn = 0 };
         }
     }
+
+    pub fn getAdditionalSize(self: AddrMode) ?ImmSize {
+        return switch (self) {
+            .addr_idx, .pc_idx, .pc_disp => .word,
+            .imm => .dynamic,
+            else => null,
+        };
+    }
 };
 
 // Used in effective address calculation
@@ -95,10 +96,27 @@ pub const BriefExtWord = packed struct {
 pub const EffAddr = packed struct {
     xn: u3,
     m: u3,
-    
+
     pub fn match(bits: u6) bool {
         const self: EffAddr = @bitCast(bits);
         return AddrMode.fromEffAddr(self) != null;
+    }
+};
+
+pub const MoveEffAddr = packed struct {
+    m: u3,
+    xn: u3,
+
+    pub fn match(bits: u6) bool {
+        const self: MoveEffAddr = @bitCast(bits);
+        return AddrMode.fromEffAddr(self.toEffAddr()) != null;
+    }
+
+    pub fn toEffAddr(self: MoveEffAddr) EffAddr {
+        return .{
+            .m = self.m,
+            .xn = self.xn,
+        };
     }
 };
 
@@ -137,7 +155,7 @@ pub const ImmOp = enum(u3) {
     subi,
     addi,
     eori = 5,
-    
+
     pub fn match(bits: u3) bool {
         _ = std.meta.intToEnum(ImmOp, bits) catch return false;
         return true;
@@ -164,12 +182,20 @@ pub const Cond = enum(u4) {
     less_or_equal,
 };
 
+// Used to tell dissasembler how much immediate data the instruction uses
+pub const ImmSize = enum {
+    byte,
+    word,
+    long,
+    dynamic,
+};
+
 pub fn BitPattern(comptime len: u16, pattern_bits: comptime_int) type {
     const Int = std.meta.Int(.unsigned, len);
-    
+
     return packed struct {
         bits: Int,
-        
+
         pub const pattern = pattern_bits;
         pub fn match(bits: Int) bool {
             return bits == pattern_bits;
