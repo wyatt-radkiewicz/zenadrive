@@ -20,9 +20,9 @@ pub const Tester = struct {
     }
 };
 
-pub fn getImmLen(encoding: Encoding) usize {
+pub fn getLen(encoding: Encoding) usize {
     _ = encoding;
-    return 0;
+    return 1;
 }
 pub fn match(comptime encoding: Encoding) bool {
     _ = encoding;

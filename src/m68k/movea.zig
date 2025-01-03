@@ -23,9 +23,9 @@ pub const Tester = struct {
     }
 };
 
-pub fn getImmLen(encoding: Encoding) usize {
+pub fn getLen(encoding: Encoding) usize {
     const size = encoding.size.toSize();
-    return enc.AddrMode.fromEffAddr(encoding.src).?.getAdditionalSize(size);
+    return enc.AddrMode.fromEffAddr(encoding.src).?.getAdditionalSize(size) + 1;
 }
 pub fn match(comptime encoding: Encoding) bool {
     _ = encoding;

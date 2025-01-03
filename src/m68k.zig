@@ -23,6 +23,23 @@ pub fn runInstr(state: *cpu.State) void {
     }
 }
 
+// Gets the length of an instruction in words (u16 chunks)
+pub fn instrLen(first_word: u16) usize {
+    switch (decode_lut[first_word]) {
+        inline else => |lut_byte| {
+            if (lut_to_instr[lut_byte]) |info| {
+                if (info.instr.match(@bitCast(first_word))) {
+                    return info.instr.getLen(@bitCast(first_word));
+                } else {
+                    return 0;
+                }
+            } else {
+                return 0;
+            }
+        },
+    }
+}
+
 // Iterates over instructions
 const InstrIterator = struct {
     instr: comptime_int,

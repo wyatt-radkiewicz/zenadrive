@@ -20,9 +20,9 @@ pub const Tester = struct {
     }
 };
 
-pub fn getImmLen(encoding: Encoding) usize {
+pub fn getLen(encoding: Encoding) usize {
     const size = if (encoding.supervisor) enc.Size.word else enc.Size.byte;
-    return enc.AddrMode.fromEffAddr(encoding.dst).?.getAdditionalSize(size);
+    return enc.AddrMode.fromEffAddr(encoding.dst).?.getAdditionalSize(size) + 1;
 }
 pub fn match(comptime encoding: Encoding) bool {
     return switch (encoding.op) {
