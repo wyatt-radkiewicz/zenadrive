@@ -1,6 +1,6 @@
 const std = @import("std");
 const enc = @import("m68k/cpu/enc.zig");
-
+const fmt = @import("m68k/cpu/fmt.zig");
 pub const cpu = @import("m68k/cpu/cpu.zig");
 
 // Run one instruction (and potentially handle exceptions (but not run their code))
@@ -23,22 +23,54 @@ pub fn runInstr(state: *cpu.State) void {
     }
 }
 
-// Gets the length of an instruction in words (u16 chunks)
-pub fn instrLen(first_word: u16) usize {
+// Gets the length of an instruction in bytes
+pub fn instrLenBytes(first_word: u16) usize {
     switch (decode_lut[first_word]) {
         inline else => |lut_byte| {
             if (lut_to_instr[lut_byte]) |info| {
-                if (info.instr.Encoding.match(@bitCast(first_word))) {
-                    return info.instr.Encoding.getLen(@bitCast(first_word));
-                } else {
-                    return 0;
-                }
+                return info.instr.Encoding.getLen(@bitCast(first_word)) * 2;
             } else {
                 return 0;
             }
         },
     }
 }
+
+pub const FormatInstr = struct {
+    state: fmt.State,
+
+    pub fn init(bus: *const cpu.Bus, addr: u32) FormatInstr {
+        return .{ .state = .{ .bus = bus, .addr = addr } };
+    }
+    
+    pub fn lenBytes(self: FormatInstr) usize {
+        const word = self.state.bus.rd16(@truncate(self.state.addr));
+        return instrLenBytes(word);
+    }
+
+    pub fn format(
+        self: FormatInstr,
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        var state = self.state;
+        const word = state.next(enc.Size.word);
+        switch (decode_lut[word]) {
+            inline else => |lut_byte| {
+                if (lut_to_instr[lut_byte]) |info| {
+                    const formatter = info.instr.Fmt{
+                        .fmt = @bitCast(word),
+                        .data = &state,
+                    };
+                    try writer.print("{}", .{formatter});
+                } else {
+                    try writer.print("illegal", .{});
+                }
+            },
+        }
+    }
+};
 
 // Iterates over instructions
 const InstrIterator = struct {
@@ -173,14 +205,14 @@ const decode_lut: [0x10000]u8 = compute_lut: {
 
 // Generate table of lut bytes to instruction functions
 const LutEntry = struct {
-    instr: type,            // Type related to this template instance
-    variant: comptime_int,  // Variant info specific to this template instance
+    instr: type, // Type related to this template instance
+    variant: comptime_int, // Variant info specific to this template instance
 };
 
 // Generate a table to quickly go from decode lut byte to actual instruction type and variant info
 const lut_to_instr: [0x100]?LutEntry = gen: {
     @setEvalBranchQuota(256 * 256);
-    
+
     var lut = [1]?LutEntry{null} ** 0x100;
     var iter = InstrIterator.init();
     var instr = iter.next();
@@ -198,85 +230,58 @@ const lut_to_instr: [0x100]?LutEntry = gen: {
     break :gen lut;
 };
 
-test "Instructions" {
-    var bus = Bus{};
-    var state = cpu.State.init(&bus);
-
-    inline for (instrs) |instr| {
-        // Write program
-        @memset(&bus.bytes, 0);
-        bus.wr32(0, 0x100); // Write stack pointer address
-        bus.wr32(4, 0x8); // Write program start address
-        var addr: u24 = 8;
-
-        // Write program code
-        for (instr.Tester.code) |word| {
-            bus.wr16(addr, word);
-            addr += 2;
-        }
-
-        // Reset and validate instruction
-        state.handleException(@intFromEnum(cpu.Vector.reset));
-        state.cycles = 0;
-        while (state.regs.pc <= addr and !state.halted) {
-            runInstr(&state);
-        }
-        try instr.Tester.validate(&state);
-    }
-}
-
 // List of cpu instructions (as types of structs)
 const instrs = .{
     @import("m68k/abcd_sbcd.zig"),
     @import("m68k/add_sub.zig"),
-    @import("m68k/adda_suba.zig"),
-    @import("m68k/addq_subq.zig"),
-    @import("m68k/addx_subx.zig"),
-    @import("m68k/and_or.zig"),
-    @import("m68k/b_cc.zig"),
-    @import("m68k/b_xxx_imm.zig"),
-    @import("m68k/b_xxx_reg.zig"),
-    @import("m68k/bitop_to_ccr.zig"),
-    @import("m68k/chk.zig"),
-    @import("m68k/cmp.zig"),
-    @import("m68k/cmpa.zig"),
-    @import("m68k/cmpi.zig"),
-    @import("m68k/cmpm.zig"),
-    @import("m68k/db_cc.zig"),
-    @import("m68k/div.zig"),
-    @import("m68k/eor.zig"),
-    @import("m68k/exg.zig"),
-    @import("m68k/ext.zig"),
-    @import("m68k/jmp.zig"),
-    @import("m68k/jsr.zig"),
-    @import("m68k/lea.zig"),
-    @import("m68k/link.zig"),
-    @import("m68k/move.zig"),
-    @import("m68k/move_from_sr.zig"),
-    @import("m68k/move_to_ccr.zig"),
-    @import("m68k/move_usp.zig"),
-    @import("m68k/movea.zig"),
-    @import("m68k/movem.zig"),
-    @import("m68k/movep.zig"),
-    @import("m68k/moveq.zig"),
-    @import("m68k/mul.zig"),
-    @import("m68k/nbcd.zig"),
-    @import("m68k/nop.zig"),
-    @import("m68k/not_neg_clr.zig"),
-    @import("m68k/opi.zig"),
-    @import("m68k/pea.zig"),
-    @import("m68k/reset.zig"),
-    @import("m68k/ret.zig"),
-    @import("m68k/s_cc.zig"),
-    @import("m68k/shift_mem.zig"),
-    @import("m68k/shift_reg.zig"),
-    @import("m68k/stop.zig"),
-    @import("m68k/swap.zig"),
-    @import("m68k/tas.zig"),
-    @import("m68k/trap.zig"),
-    @import("m68k/trapv.zig"),
-    @import("m68k/tst.zig"),
-    @import("m68k/unlk.zig"),
+    //@import("m68k/adda_suba.zig"),
+    //@import("m68k/addq_subq.zig"),
+    //@import("m68k/addx_subx.zig"),
+    //@import("m68k/and_or.zig"),
+    //@import("m68k/b_cc.zig"),
+    //@import("m68k/b_xxx_imm.zig"),
+    //@import("m68k/b_xxx_reg.zig"),
+    //@import("m68k/bitop_to_ccr.zig"),
+    //@import("m68k/chk.zig"),
+    //@import("m68k/cmp.zig"),
+    //@import("m68k/cmpa.zig"),
+    //@import("m68k/cmpi.zig"),
+    //@import("m68k/cmpm.zig"),
+    //@import("m68k/db_cc.zig"),
+    //@import("m68k/div.zig"),
+    //@import("m68k/eor.zig"),
+    //@import("m68k/exg.zig"),
+    //@import("m68k/ext.zig"),
+    //@import("m68k/jmp.zig"),
+    //@import("m68k/jsr.zig"),
+    //@import("m68k/lea.zig"),
+    //@import("m68k/link.zig"),
+    //@import("m68k/move.zig"),
+    //@import("m68k/move_from_sr.zig"),
+    //@import("m68k/move_to_ccr.zig"),
+    //@import("m68k/move_usp.zig"),
+    //@import("m68k/movea.zig"),
+    //@import("m68k/movem.zig"),
+    //@import("m68k/movep.zig"),
+    //@import("m68k/moveq.zig"),
+    //@import("m68k/mul.zig"),
+    //@import("m68k/nbcd.zig"),
+    //@import("m68k/nop.zig"),
+    //@import("m68k/not_neg_clr.zig"),
+    //@import("m68k/opi.zig"),
+    //@import("m68k/pea.zig"),
+    //@import("m68k/reset.zig"),
+    //@import("m68k/ret.zig"),
+    //@import("m68k/s_cc.zig"),
+    //@import("m68k/shift_mem.zig"),
+    //@import("m68k/shift_reg.zig"),
+    //@import("m68k/stop.zig"),
+    //@import("m68k/swap.zig"),
+    //@import("m68k/tas.zig"),
+    //@import("m68k/trap.zig"),
+    //@import("m68k/trapv.zig"),
+    //@import("m68k/tst.zig"),
+    //@import("m68k/unlk.zig"),
 };
 
 // Bus tester
@@ -311,11 +316,53 @@ const Bus = struct {
 
 test "Bus Impl" {
     const expect = std.testing.expect;
-    
+
     var impl = Bus{};
     var state = cpu.State.init(&impl);
-    
+
     state.wrBus(enc.Size.byte, 4, 0xFF);
     try expect(state.rdBus(enc.Size.byte, 4) == 0xFF);
     try expect(state.rdBus(enc.Size.word, 4) == 0xFF00);
+}
+
+test "Instructions" {
+    var bus = Bus{};
+    var state = cpu.State.init(&bus);
+
+    inline for (instrs) |instr| {
+        // Write program
+        @memset(&bus.bytes, 0);
+        bus.wr32(0, 0x100); // Write stack pointer address
+        bus.wr32(4, 0x8); // Write program start address
+        var addr: u24 = 8;
+
+        // Write program code
+        for (instr.Tester.code) |word| {
+            bus.wr16(addr, word);
+            addr += 2;
+        }
+
+        // Reset and validate instruction
+        state.handleException(@intFromEnum(cpu.Vector.reset));
+        state.cycles = 0;
+        while (state.regs.pc <= addr and !state.halted) {
+            runInstr(&state);
+        }
+        try instr.Tester.validate(&state);
+    }
+}
+
+pub fn main() !void {
+    var impl = Bus{};
+    const intr = cpu.Bus.init(&impl);
+    impl.wr16(0, 0xCB00);
+    impl.wr16(2, 0x8B0F);
+    impl.wr16(4, 0xD154);
+    const writer = std.io.getStdOut().writer();
+    var addr: u24 = 0;
+    for (0..3) |_| {
+        const instr = FormatInstr.init(&intr, addr);
+        try writer.print("{}: {}\n", .{ addr, instr });
+        addr += @truncate(instr.lenBytes());
+    }
 }

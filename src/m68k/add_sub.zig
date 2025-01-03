@@ -1,6 +1,7 @@
 const std = @import("std");
 const enc = @import("cpu/enc.zig");
 const cpu = @import("cpu/cpu.zig");
+const fmt = @import("cpu/fmt.zig");
 
 const Op = enum(u1) { sub, add };
 pub const Encoding = packed struct {
@@ -26,6 +27,31 @@ pub const Encoding = packed struct {
                 else => true,
             };
         }
+    }
+};
+pub const Fmt = struct {
+    fmt: Encoding,
+    data: *fmt.State,
+    
+    pub fn format(self: Fmt, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        var src: enc.EffAddr = undefined;
+        var dst: enc.EffAddr = undefined;
+        switch (self.fmt.dir) {
+            .dn_ea_store_dn => {
+                src = self.fmt.ea;
+                dst = .{ .m = 0, .xn = self.fmt.dn };
+            },
+            .ea_dn_store_ea => {
+                dst = self.fmt.ea;
+                src = .{ .m = 0, .xn = self.fmt.dn };
+            },
+        }
+        try writer.print("{s}.{c} {s},{s}", .{
+            @tagName(self.fmt.op),
+            self.fmt.size.toChar(),
+            fmt.EffAddr.init(self.data, src, self.fmt.size),
+            fmt.EffAddr.init(self.data, dst, null),
+        });
     }
 };
 pub const Variant = packed struct {

@@ -462,20 +462,21 @@ pub const Bus = struct {
     pub fn init(impl: anytype) Bus {
         const Ptr = @TypeOf(impl);
         const Impl = std.meta.Child(Ptr);
+        const ConstPtr = *const Impl;
 
         // Instead of unsafely casting the pointers to the impl's functions, I create these buffer
         // functions that only cast the context pointer to be more type safe.
         const funcs = struct {
-            fn rd8(ctx: *anyopaque, addr: u24) u8 {
-                const bus: Ptr = @ptrCast(@alignCast(ctx));
+            fn rd8(ctx: *const anyopaque, addr: u24) u8 {
+                const bus: ConstPtr = @ptrCast(@alignCast(ctx));
                 return Impl.rd8(bus, addr);
             }
-            fn rd16(ctx: *anyopaque, addr: u24) u16 {
-                const bus: Ptr = @ptrCast(@alignCast(ctx));
+            fn rd16(ctx: *const anyopaque, addr: u24) u16 {
+                const bus: ConstPtr = @ptrCast(@alignCast(ctx));
                 return Impl.rd16(bus, addr);
             }
-            fn rd32(ctx: *anyopaque, addr: u24) u32 {
-                const bus: Ptr = @ptrCast(@alignCast(ctx));
+            fn rd32(ctx: *const anyopaque, addr: u24) u32 {
+                const bus: ConstPtr = @ptrCast(@alignCast(ctx));
                 return Impl.rd32(bus, addr);
             }
             fn wr8(ctx: *anyopaque, addr: u24, byte: u8) void {
@@ -504,22 +505,22 @@ pub const Bus = struct {
     }
 
     // Helper functions so you don't have to pass the context pointer every time
-    inline fn rd8(self: *const Bus, addr: u24) u8 {
+    pub inline fn rd8(self: *const Bus, addr: u24) u8 {
         return self.rd8fn(self.ctx, addr);
     }
-    inline fn rd16(self: *const Bus, addr: u24) u16 {
+    pub inline fn rd16(self: *const Bus, addr: u24) u16 {
         return self.rd16fn(self.ctx, addr);
     }
-    inline fn rd32(self: *const Bus, addr: u24) u32 {
+    pub inline fn rd32(self: *const Bus, addr: u24) u32 {
         return self.rd32fn(self.ctx, addr);
     }
-    inline fn wr8(self: *const Bus, addr: u24, byte: u8) void {
+    pub inline fn wr8(self: *Bus, addr: u24, byte: u8) void {
         self.wr8fn(self.ctx, addr, byte);
     }
-    inline fn wr16(self: *const Bus, addr: u24, word: u16) void {
+    pub inline fn wr16(self: *Bus, addr: u24, word: u16) void {
         self.wr16fn(self.ctx, addr, word);
     }
-    inline fn wr32(self: *const Bus, addr: u24, long: u32) void {
+    pub inline fn wr32(self: *Bus, addr: u24, long: u32) void {
         self.wr32fn(self.ctx, addr, long);
     }
 };
